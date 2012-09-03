@@ -1,10 +1,7 @@
-PREFIX?=/usr/local
-BINDIR = ${PREFIX}/sbin
-MANDIR = ${PREFIX}/man
+
+DESTDIR = $(TARGETDIR)/usr/sbin
 
 SRC = src
-
-CFLAGS?= -O2
 
 all : 
 	@cd $(SRC); $(MAKE) dnsmasq 
@@ -13,9 +10,9 @@ clean :
 	rm -f *~ contrib/*/*~ */*~ $(SRC)/*.o $(SRC)/dnsmasq core build
 
 install : all
-	install -d $(DESTDIR)$(BINDIR) -d $(DESTDIR)$(MANDIR)/man8
-	install -m 644 dnsmasq.8 $(DESTDIR)$(MANDIR)/man8 
-	install -m 755 $(SRC)/dnsmasq $(DESTDIR)$(BINDIR)
+	install -d $(DESTDIR)
+	install -m 755 $(SRC)/dnsmasq $(DESTDIR)
+	$(STRIP) $(DESTDIR)/dnsmasq
 
 
 

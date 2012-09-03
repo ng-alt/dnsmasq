@@ -26,7 +26,9 @@
 #include <netinet/in.h>
 
 /* get this before config.h too. */
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
 #include <syslog.h>
+#endif
 #include <arpa/nameser.h>
 
 #include "config.h"
@@ -233,7 +235,13 @@ struct frec {
   struct server *sentto;
   unsigned int iface;
   unsigned short orig_id, new_id;
-  int fd;
+  //int fd;
+  //int forwardall;   /*  added by EricHuang, 01/02/2008 */
+#ifdef OPENDNS_PARENTAL_CONTROL
+  int discard_pseudoheader, fd, forwardall; /*  add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#else
+  int fd, forwardall;
+#endif
   time_t time;
   struct frec *next;
 };
@@ -365,6 +373,14 @@ struct daemon {
   int dhcpfd, dhcp_raw_fd, dhcp_icmp_fd, lease_fd;
   struct udp_dhcp_packet *dhcp_packet;
   char *dhcp_buff, *dhcp_buff2;
+  
+  /*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+  /* OpenDNS device ID */
+  int have_device_id;
+  unsigned char device_id[8];  /* In network byte-order. */
+#endif
+  /*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 };
 
 /* cache.c */
@@ -474,3 +490,22 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr);
 void load_dhcp(char *file, char *suffix, time_t now, char *hostname);
 #endif
 
+//#ifdef MULTIPLE_PPPOE
+/*  wklin added start, 09/03/2007 */
+#define MAX_KEYWORD_LEN 64
+typedef struct _keyword_t{
+    char name[MAX_KEYWORD_LEN];
+    struct _keyword_t *next;
+    int  wildcard; /* for *.flets */
+} keyword_t;
+/*  wklin added end, 09/03/2007 */
+
+/*  added start Bob Guo, 10/24/2007 */
+
+#define MAX_DNS_ENTRY_NUMBER 32
+typedef struct _session2_dns{
+    int iDNSCount;
+    unsigned long DNSEntry[MAX_DNS_ENTRY_NUMBER];
+}Session2_DNS;
+/*  added end Bob Guo, 10/24/2007 */
+//#endif

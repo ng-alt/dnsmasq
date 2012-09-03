@@ -11,9 +11,24 @@
 */
 
 /* Author's email: simon@thekelleys.org.uk */
-
+#ifdef OPENDNS_PARENTAL_CONTROL
+#define VERSION "2.15-OpenDNS-1"  /*  modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#else
 #define VERSION "2.15"
-
+#endif
+/*  wklin modified start, 08/31/2007 */
+#ifdef MULTIPLE_PPPOE /* for downsize ram usage */
+#define FTABSIZ 50 /* max number of outstanding requests */
+#define MAX_PROCS 10 /* max no children for TCP requests */
+#define CHILD_LIFETIME 150 /* secs 'till terminated (RFC1035 suggests > 120s) */
+#define EDNS_PKTSZ 1280 /* default max EDNS.0 UDP packet from RFC2671 */
+#define TIMEOUT 20 /* drop UDP queries after TIMEOUT seconds */
+#define LOGRATE 120 /* log table overflows every LOGRATE seconds */
+#define CACHESIZ 0 /* default cache size */
+#define MAXTOK 50 /* token in DHCP leases */
+#define MAXLEASES 150 /* maximum number of DHCP leases */
+#define SMALLDNAME 40 /* most domain names are smaller than this */
+#else
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
 #define CHILD_LIFETIME 150 /* secs 'till terminated (RFC1035 suggests > 120s) */
@@ -24,6 +39,8 @@
 #define MAXTOK 50 /* token in DHCP leases */
 #define MAXLEASES 150 /* maximum number of DHCP leases */
 #define SMALLDNAME 40 /* most domain names are smaller than this */
+#endif
+/*  wklin modified end, 08/31/2007 */
 #define HOSTSFILE "/etc/hosts"
 #define ETHERSFILE "/etc/ethers"
 #ifdef __uClinux__
@@ -185,7 +202,7 @@ NOTES:
 
 /* platform independent options. */
 #undef HAVE_BROKEN_RTC
-#define HAVE_ISC_READER
+#undef HAVE_ISC_READER /* #define HAVE_ISC_READER */
 
 #if defined(HAVE_BROKEN_RTC) && defined(HAVE_ISC_READER)
 #  error HAVE_ISC_READER is not compatible with HAVE_BROKEN_RTC

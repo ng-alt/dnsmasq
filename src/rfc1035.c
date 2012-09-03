@@ -1141,7 +1141,88 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
   return ansp - (unsigned char *)header;
 }
 
+/*  wklin added start, 09/05/2007 @mpoe */
+#ifdef MULTIPLE_PPPOE
+typedef struct {
+    int param_count;
+    int param_len[32];
+    void *param[32];
+} acos_t;
 
+unsigned long acos_ip = 0 ;
+static void acos_set_ipaddr(struct in_addr *p)
+{
+    acos_t param;
+    int fd;
+    unsigned long refresh_tick = 0;
+    unsigned long ipaddr = 0;
 
+    fd = open("/dev/acos_nat_cli", O_RDWR);
+    if (!fd)  
+        return;
 
+    ipaddr = ntohl(p->s_addr);
+    memset((char *)&param, 0, sizeof(acos_t));
+    param.param_count = 2;
+    param.param[0] = (void *)&ipaddr;
+    param.param_len[0] = sizeof(unsigned long);
+    param.param[1] = (void *)&refresh_tick;
+    param.param_len[1] = sizeof(unsigned long);
+    /*  modified by Max Ding, 01/13/2009 for multi-language */
+    //if (0 > ioctl(fd, _IOR(120, 98, char *), &param)) 
+    if (0 > ioctl(fd, _IOR(100, 110, char *), &param)) 
+        fprintf(stderr, "error setting ipaddress %08x.\n", ipaddr);
 
+    close(fd);
+    return;
+}
+
+void extract_set_addr(HEADER *header, unsigned int qlen)
+{
+    unsigned char *p, *psave, *endrr;
+    int qtype, qclass, rdlen;
+    unsigned long ttl;
+    int i;
+    
+    unsigned long *pTTL;
+  
+    /* skip over questions */
+    if (!(p = skip_questions(header, qlen)))   
+        return; /* bad packet */
+        
+    psave = p;
+  
+    for (i=0; i<ntohs(header->ancount); i++)
+    {
+        unsigned char name[256];
+        if (!extract_name(header, qlen, &p, &name[0], 1))      
+          return; /* bad packet */
+       
+        GETSHORT(qtype, p); 
+        GETSHORT(qclass, p);
+        pTTL = p;
+        GETLONG(ttl, p);
+        GETSHORT(rdlen, p);
+	
+        endrr = p + rdlen;
+        if ((unsigned int)(endrr - (unsigned char *)header) > qlen)
+            return;
+      
+        if (qclass != C_IN)
+	    {
+	        p = endrr;
+	        continue;
+	    }
+
+        if (qtype == T_A) { /* A record. */
+            *pTTL = 0;
+            /*   Add a unsigned long variable acos_ip to avoid the 4-bytes align issue.      weal @ April 14 */
+            memcpy(&acos_ip, p, 4);
+            acos_set_ipaddr((struct in_addr *)&acos_ip);
+        }
+        p = endrr;
+    }
+    return;
+}
+#endif /* MULTIPLE_PPPOE */
+/*  wklin added end, 09/05/2007 @mpoe */

@@ -15,11 +15,202 @@
 #include "dnsmasq.h"
 
 static int sigterm, sighup, sigusr1, sigalarm, num_kids, in_child;
+/*  added start, Winster Chan, 01/12/2007 */
+/*  wklin modified start, 01/24/2007 */
+/* init this value to -1, so that it won't affect the
+ * protocols other than pptp/pppoe which support DoD.
+ */
+static int wan_up = -1;
+/*  wklin modified end, 01/24/2007 */
+/*  added end, Winster Chan, 01/12/2007 */
+/*  wklin added start, 09/03/2007 @mpoe */
+#ifdef MULTIPLE_PPPOE
+keyword_t *keyword_list = NULL;
+static void keyword_list_init(void);
+
+/*  BobGuo added start, 10/24/2007 */
+
+Session2_DNS    Session2_Dns_Tbl;
+static void Session2_Dns_Tbl_Init();
+
+/*  BobGuo added end, 10/24/2007 */
+
+
+#endif /* MULTIPLE_PPPOE */
+/*  wklin added end, 09/03/2007 @mpoe*/
+
+/*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+#if 0
+/*  added start, zacker, 07/29/2008,@Russia_PPTP */
+keyword_t pptp_domain;
+static void pptp_domain_list_init(void);
+
+Session2_DNS pptp_dhcp_dns_tbl;
+static void pptp_dhcp_dns_tbl_init(void);
+/*  added end, zacker, 07/29/2008,@Russia_PPTP */
+#endif
+/*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 
 static int set_dns_listeners(struct daemon *daemon, fd_set *set, int maxfd);
 static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now);
 static void sig_handler(int sig);
 
+/*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+#if 0
+/*  added start, zacker, 07/29/2008,@Russia_PPTP */
+static void pptp_domain_list_init(void) {
+    FILE *fp;
+    char *token;
+    char buf[256];
+
+    memset(&pptp_domain, 0, sizeof(pptp_domain));
+
+    fp = fopen("/tmp/ppp/pptp_domain", "r");
+    if(fp == NULL)
+        return;
+
+    while (fgets(buf, sizeof(buf), fp))
+    {
+        token = strtok(buf, " \t\n");
+        if(token == NULL)
+            continue;
+        if(token)
+        {
+            strcpy(pptp_domain.name, token);
+            pptp_domain.next = NULL;
+            pptp_domain.wildcard = 0;
+        }
+    }
+
+    fclose(fp);
+}
+
+static void pptp_dhcp_dns_tbl_init()
+{
+    FILE *fp;
+    char *token;
+    char line[256];
+    in_addr_t   dnsServer;
+
+    memset(&pptp_dhcp_dns_tbl, 0, sizeof(Session2_DNS));
+    pptp_dhcp_dns_tbl.iDNSCount = 0;
+    
+    fp = fopen("/tmp/ppp/pptp_dhcp_dns.conf", "r");
+    if(fp == NULL)
+        return;
+        
+    while (fgets(line, sizeof(line), fp)) 
+    {
+        token = strtok(line, " \t\n");
+        if(token == NULL)
+            continue;
+        if( strcmp(token, "nameserver") == 0)
+        {
+            token = strtok(NULL, " \t\n");
+            if(token)
+            {
+                dnsServer = inet_addr(token);
+                pptp_dhcp_dns_tbl.DNSEntry[pptp_dhcp_dns_tbl.iDNSCount] = dnsServer;
+                pptp_dhcp_dns_tbl.iDNSCount++;
+            }
+        }   
+    }
+    
+    fclose(fp);
+}
+/*  added end, zacker, 07/29/2008,@Russia_PPTP */
+#endif
+/*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+
+/*  wklin added start, 09/03/2007 @mpoe */
+#ifdef MULTIPLE_PPPOE
+static void keyword_list_init(void) {
+    FILE *fp;
+    char buf[MAX_KEYWORD_LEN];
+    keyword_t *k1, *k2;
+
+    keyword_t *keyword, *to_be_freed;
+    /* fprintf(stderr, "keyword_list_init.\n"); */
+    if (keyword_list) {
+        /* fprintf(stderr, "free keyword_list.\n"); */
+        for (keyword=keyword_list; keyword;) {
+            to_be_freed = keyword;
+            keyword = keyword->next;
+            free(to_be_freed);
+            /* fprintf(stderr, "keyword %p freed.\n",keyword);*/
+        }
+        keyword_list = NULL;
+    }
+    fp = fopen("/tmp/mpoe_keywords", "r");
+    if (fp) {
+        while (NULL != fgets(buf, sizeof(buf), fp)) {
+            buf[strlen(buf)-1] = '\0'; /* remove \n */
+            /* fprintf(stderr, "read keyword %s\n", buf);*/
+            k1 = malloc(sizeof(keyword_t));
+            if (!k1) {
+                /* fprintf(stderr, "out of memory"); */
+                return;
+            }
+            if (strstr(buf, "*")) {
+                k1->wildcard = 1;
+                strcpy(k1->name, strstr(buf, "*")+1);
+            } else {
+                k1->wildcard = 0;
+                strcpy(k1->name, buf);
+            }
+            k1->next = NULL;
+            /* fprintf(stderr, "added %s (%d) to keyword_list\n", k1->name,
+                    k1->wildcard); */
+            if (!keyword_list) {
+                keyword_list = k1;
+            } else {
+                k2 = keyword_list;
+                while(k2->next)
+                    k2 = k2->next;
+                k2->next = k1;
+            }
+        }
+        fclose(fp);
+    }
+}
+
+/*  BobGuo added start, 10/24/2007 */
+static void Session2_Dns_Tbl_Init()
+{
+    FILE *fp;
+    char *token;
+    char line[256];
+    in_addr_t   dnsServer;
+    
+    Session2_Dns_Tbl.iDNSCount = 0;
+    fp = fopen("/tmp/resolv_session2.conf", "r");
+    if(fp == NULL)
+        return;
+        
+    while (fgets(line, sizeof(line), fp)) 
+    {
+        token = strtok(line, " \t\n");
+        if(token == NULL)
+            continue;
+        if( strcmp(token, "nameserver") == 0)
+        {
+            token = strtok(NULL, " \t\n");
+            if(token)
+            {
+                dnsServer = inet_addr(token);
+                Session2_Dns_Tbl.DNSEntry[Session2_Dns_Tbl.iDNSCount] = dnsServer;
+                Session2_Dns_Tbl.iDNSCount++;
+            }
+        }   
+    }
+    
+    fclose(fp);
+}
+
+/*  BobGuo added end, 10/24/2007 */
+
+#endif /* MULTIPLE_PPPOE */
+/*  wklin added end, 09/03/2007 @mpoe */
 int main (int argc, char **argv)
 {
   struct daemon *daemon;
@@ -50,6 +241,10 @@ int main (int argc, char **argv)
   sigaction(SIGTERM, &sigact, NULL);
   sigaction(SIGALRM, &sigact, NULL);
   sigaction(SIGCHLD, &sigact, NULL);
+  /*  added start, Winster Chan, 01/12/2007 */
+  sigaction(SIGINT, &sigact, NULL);
+  sigaction(SIGUSR2, &sigact, NULL);
+  /*  added end, Winster Chan, 01/12/2007 */
 
   /* ignore SIGPIPE */
   sigact.sa_handler = SIG_IGN;
@@ -62,6 +257,10 @@ int main (int argc, char **argv)
   sigaddset(&sigact.sa_mask, SIGHUP);
   sigaddset(&sigact.sa_mask, SIGALRM);
   sigaddset(&sigact.sa_mask, SIGCHLD);
+  /*  added start, Winster Chan, 01/12/2007 */
+  sigaddset(&sigact.sa_mask, SIGINT);
+  sigaddset(&sigact.sa_mask, SIGUSR2);
+  /*  added end, Winster Chan, 01/12/2007 */
   sigprocmask(SIG_BLOCK, &sigact.sa_mask, &sigmask); 
 
   daemon = read_opts(argc, argv);
@@ -116,7 +315,18 @@ int main (int argc, char **argv)
 	    die("no interface with address %s", addrbuff);
 	  }
     }
-  
+#if 0  
+  /* wklin debug start */
+  {
+      int fd;
+      fd = open("/dev/console", "w");
+      if (fd) {
+          dup2(fd, 2);
+          close(fd);
+      }
+  }
+  /* wklin debug end */
+#endif
   forward_init(1);
   cache_init(daemon->cachesize, daemon->options & OPT_LOG);
 
@@ -127,6 +337,7 @@ int main (int argc, char **argv)
  
   now = dnsmasq_time(daemon->uptime_fd);
   
+#if 0 /*  wklin removed, 01/24/2007 */
   if (daemon->dhcp)
     {
 #if !defined(IP_PKTINFO) && !defined(IP_RECVIF)
@@ -141,6 +352,7 @@ int main (int argc, char **argv)
       dhcp_init(daemon);
       lease_init(daemon, now);
     }
+#endif
 
   /* If query_port is set then create a socket now, before dumping root
      for use to access nameservers without more specific source addresses.
@@ -251,6 +463,7 @@ int main (int argc, char **argv)
 	}
     }
 
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
   openlog("dnsmasq", 
 	  DNSMASQ_LOG_OPT(daemon->options & OPT_DEBUG), 
 	  DNSMASQ_LOG_FAC(daemon->options & OPT_DEBUG));
@@ -262,7 +475,9 @@ int main (int argc, char **argv)
   
   if (bind_fallback)
     syslog(LOG_WARNING, "setting --bind-interfaces option because of OS limitations");
+#endif /* USE_SYSLOG */
   
+#if 0 /*  wklin removed, 01/24/2007 */
   if (daemon->dhcp)
     {
       struct dhcp_context *dhcp_tmp;
@@ -289,7 +504,9 @@ int main (int argc, char **argv)
 		 daemon->dhcp_buff, inet_ntoa(dhcp_tmp->end), time);
 	}
     }
+#endif
 
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
 #ifdef HAVE_BROKEN_RTC
   if (daemon->dhcp)
     syslog(LOG_INFO, "DHCP, %s will be written every %ds", daemon->lease_file, daemon->min_leasetime/3);
@@ -297,7 +514,8 @@ int main (int argc, char **argv)
   
   if (!(daemon->options & OPT_DEBUG) && (getuid() == 0 || geteuid() == 0))
     syslog(LOG_WARNING, "running as root");
-  
+#endif /* USE_SYSLOG */
+
   check_servers(daemon, interfaces);
   
   while (sigterm == 0)
@@ -307,6 +525,7 @@ int main (int argc, char **argv)
       if (sighup)
 	{
 	  cache_reload(daemon->options, daemon->namebuff, daemon->domain_suffix, daemon->addn_hosts);
+#if 0
 	  if (daemon->dhcp)
 	    {
 	      if (daemon->options & OPT_ETHERS)
@@ -316,11 +535,29 @@ int main (int argc, char **argv)
 	      lease_update_file(0, now); 
 	      lease_update_dns();
 	    }
+#endif
 	  if (daemon->resolv_files && (daemon->options & OPT_NO_POLL))
 	    {
 	      reload_servers(daemon->resolv_files->name, daemon);
 	      check_servers(daemon, interfaces);
 	    }
+
+	  /*  wklin added start, 09/03/2007 @mpoe */
+#ifdef MULTIPLE_PPPOE
+	  keyword_list_init();
+	  Session2_Dns_Tbl_Init();
+#endif /* MULTIPLE_PPPOE */
+	  /*  wklin added end, 09/03/2007 @mpoe*/
+
+      /*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+#if 0
+      /*  added start, zacker, 07/29/2008,@Russia_PPTP */
+      pptp_domain_list_init();
+      pptp_dhcp_dns_tbl_init();
+      /*  added end, zacker, 07/29/2008,@Russia_PPTP */
+#endif
+      /*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+
 	  sighup = 0;
 	}
       
@@ -332,6 +569,7 @@ int main (int argc, char **argv)
       
       if (sigalarm)
 	{
+#if 0	
 	  if (daemon->dhcp)
 	    {
 	      lease_update_file(1, now);
@@ -339,6 +577,7 @@ int main (int argc, char **argv)
 	      alarm(daemon->min_leasetime/3);
 #endif
 	    } 
+#endif
 	  sigalarm  = 0;
 	}
       
@@ -348,12 +587,14 @@ int main (int argc, char **argv)
 	{
 	  int maxfd = set_dns_listeners(daemon, &rset, 0);
 	  	  
+#if 0  /*  wklin removed, 01/24/2007 */	  	  
 	  if (daemon->dhcp)
 	    {
 	      FD_SET(daemon->dhcpfd, &rset);
 	      if (daemon->dhcpfd > maxfd)
 		maxfd = daemon->dhcpfd;
 	    }
+#endif
 
 #ifdef HAVE_PSELECT
 	  if (pselect(maxfd+1, &rset, NULL, NULL, NULL, &sigmask) < 0)
@@ -394,8 +635,10 @@ int main (int argc, char **argv)
 		{
 		  if (stat(res->name, &statbuf) == -1)
 		    {
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
 		      if (!res->logged)
 			syslog(LOG_WARNING, "failed to access %s: %m", res->name);
+#endif
 		      res->logged = 1;
 		    }
 		  else
@@ -418,15 +661,20 @@ int main (int argc, char **argv)
 		}
 	    }
 	}
-		
+
       check_dns_listeners(daemon, &rset, now);
-      
+
+#if 0	  
       if (daemon->dhcp && FD_ISSET(daemon->dhcpfd, &rset))
 	dhcp_packet(daemon, now);
+#endif	
     }
   
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
   syslog(LOG_INFO, "exiting on receipt of SIGTERM");
+#endif
 
+#if 0
   if (daemon->dhcp)
     { 
 #ifdef HAVE_BROKEN_RTC
@@ -434,7 +682,8 @@ int main (int argc, char **argv)
 #endif
       close(daemon->lease_fd);
     }
-  
+#endif
+
   return 0;
 }
 
@@ -461,6 +710,16 @@ static void sig_handler(int sig)
       while (waitpid(-1, NULL, WNOHANG) > 0)
 	num_kids--;
     }
+  /*  added start, Winster Chan, 01/12/2007 */
+  else if (sig == SIGINT)
+  {
+    wan_up = 0; /*  wklin modified, 01/24/2007 */
+  }
+  else if (sig == SIGUSR2)
+  {
+    wan_up = 1; /*  wklin modified, 01/24/2007 */
+  }
+  /*  added end, Winster Chan, 01/12/2007 */
 }
 
 static int set_dns_listeners(struct daemon *daemon, fd_set *set, int maxfd)
@@ -500,16 +759,25 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
    for (listener = daemon->listeners; listener; listener = listener->next)
      {
        if (FD_ISSET(listener->fd, set))
-	 receive_query(listener, daemon, now);
+        {
+          /*  added start, Winster Chan, 01/12/2007 */
+          if (!wan_up) /* maybe true in pptp/pppoe mode */
+            {
+                system("killall -SIGUSR1 bpa_monitor");     /*  added Bob Guo, 02/25/2007, trigger BPA to dial up */
+                system("ping -c 1 -g 0 255.255.255.255");
+            }
+          /*  added end, Winster Chan, 01/12/2007 */
+          receive_query(listener, daemon, now);
+        }
        
-       if (FD_ISSET(listener->tcpfd, set))
-	 {
+    if (FD_ISSET(listener->tcpfd, set))
+	{
 	   int confd;
 	   
 	   while((confd = accept(listener->tcpfd, NULL, NULL)) == -1 && errno == EINTR);
 	      
 	   if (confd != -1)
-	     {
+	   {
 	       int match = 1;
 	       if (!(daemon->options & OPT_NOWILD)) 
 		 {
@@ -527,8 +795,8 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
 			 tcp_addr.in6.sin6_flowinfo =  htonl(0);
 #endif
 		       for (match = 1, tmp = daemon->if_except; tmp; tmp = tmp->next)
-			 if (sockaddr_isequal(&tmp->addr, &tcp_addr))
-			   match = 0;
+			        if (sockaddr_isequal(&tmp->addr, &tcp_addr))
+			            match = 0;
 		       
 		       if (match && (daemon->if_names || daemon->if_addrs))
 			 {

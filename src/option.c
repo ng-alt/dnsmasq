@@ -22,7 +22,9 @@ struct myoption {
 };
 
 #define OPTSTRING "ZDNLERzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:"
-
+#ifdef OPENDNS_PARENTAL_CONTROL
+#define LOPT_DEVICE_ID 289      /*  add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#endif
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
   {"no-hosts", 0, 0, 'h'},
@@ -74,6 +76,9 @@ static struct myoption opts[] = {
   {"dhcp-userclass", 1, 0, 'j'},
   {"edns-packet-max", 1, 0, 'P'},
   {"keep-in-foreground", 0, 0, 'k'},
+#ifdef OPENDNS_PARENTAL_CONTROL
+  {"device-id", 1, 0, LOPT_DEVICE_ID },/*  add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#endif
   {0, 0, 0, 0}
 };
 
@@ -104,7 +109,8 @@ static struct optflags optmap[] = {
   { 0, 0 }
 };
 
-static char *usage =
+static char *usage = 
+#ifndef MULTIPLE_PPPOE /*  removed start, 08/31/2007, for downsize ram usage */
 "Usage: dnsmasq [options]\n"
 "\nValid options are :\n"
 "-a, --listen-address=ipaddr         Specify local address(es) to listen on.\n"
@@ -155,8 +161,8 @@ static char *usage =
 "-X, --dhcp-lease-max=number         Specify maximum number of DHCP leases (defaults to %d).\n"
 "-z, --bind-interfaces               Bind only to interfaces in use.\n"
 "-Z, --read-ethers                   Read DHCP static host information from " ETHERSFILE ".\n"
+#endif /*  wklin removed end, 08/31/2007, for downsize ram usage */
 "\n";
-
 
 struct daemon *read_opts (int argc, char **argv)
 {
@@ -270,8 +276,13 @@ struct daemon *read_opts (int argc, char **argv)
      
       if (!f && option == 'w')
 	{
+#if !defined(MULTIPLE_PPPOE) /*  wklin modified, for multiple pppoe, 08/31/2007 */
 	  fprintf (stderr, usage,  CACHESIZ, EDNS_PKTSZ, MAXLEASES);
 	  exit(0);
+#else
+	  extern int mpoe;
+	  mpoe = 1;
+#endif /*  wklin modified end, 08/31/2007 */
 	}
 
       if (!f && option == 'v')
@@ -1224,6 +1235,30 @@ struct daemon *read_opts (int argc, char **argv)
 		
 		break;
 	      }
+	    /*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+	    case LOPT_DEVICE_ID:  /* --device-id */
+        {
+            char *endptr;
+            unsigned long long device_id;
+            
+            errno = 0;
+            //device_id = strtoull(arg, &endptr, 16);
+            device_id = strtoull(argv, &endptr, 16);
+            if (errno != 0 || *endptr != 0)
+            {
+                problem = "invalid device ID";
+                break;
+            }
+            daemon->have_device_id = 1;
+            for (i = 7; i >= 0; i--)
+            {
+                daemon->device_id[i] = (unsigned char)device_id;
+                device_id >>= 8;
+            }
+        }
+#endif
+	    /*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 	    }
 	}
       

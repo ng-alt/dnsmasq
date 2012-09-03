@@ -66,8 +66,10 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
 
   if (stat(file, &statbuf) == -1)
     {
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
       if (!logged_lease)
 	syslog(LOG_WARNING, "failed to access %s: %m", file);
+#endif
       logged_lease = 1;
       return;
     }
@@ -83,11 +85,15 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
   
   if (!(fp = fopen (file, "r")))
     {
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
       syslog (LOG_ERR, "failed to load %s: %m", file);
+#endif
       return;
     }
   
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
   syslog (LOG_INFO, "reading %s", file);
+#endif
 
   while ((next_token(token, MAXTOK, fp)))
     {
@@ -109,7 +115,9 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
 			    if (!canonicalise(hostname))
 			      {
 				*hostname = 0;
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
 				syslog(LOG_ERR, "bad name in %s", file); 
+#endif
 			      }
 			}
                       else if ((strcmp(token, "ends") == 0) ||
@@ -170,9 +178,11 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
 		    { 
 		      if (!suffix || hostname_isequal(dot+1, suffix))
 			{
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
 			  syslog(LOG_WARNING, 
 				 "Ignoring DHCP lease for %s because it has an illegal domain part", 
 				 hostname);
+#endif
 			  continue;
 			}
 		      *dot = 0;

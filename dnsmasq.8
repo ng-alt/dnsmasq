@@ -32,6 +32,10 @@ the configuration file.
 .B \-h, --no-hosts
 Don't read the hostnames in /etc/hosts.
 .TP
+.B --device-id=<device ID>
+Specify an OpenDNS device ID to add when forwarding UDP queries. The
+device ID must be a hexadecimal number. A "0x" prefix is optional.
+.TP
 .B \-H, --addn-hosts=<file>
 Additional hosts file. Read the specified file as well as /etc/hosts. If -h is given, read
 only the specified file. At most one additional hosts file may be

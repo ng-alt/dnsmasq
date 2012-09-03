@@ -456,7 +456,9 @@ void check_servers(struct daemon *daemon, struct irec *interfaces)
 	      break;
 	  if (iface)
 	    {
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
 	      syslog(LOG_WARNING, "ignoring nameserver %s - local interface", addrbuff);
+#endif
 	      free(new);
 	      continue;
 	    }
@@ -464,8 +466,10 @@ void check_servers(struct daemon *daemon, struct irec *interfaces)
 	  /* Do we need a socket set? */
 	  if (!new->sfd && !(new->sfd = allocate_sfd(&new->source_addr, &daemon->sfds)))
 	    {
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
 	      syslog(LOG_WARNING, 
 		     "ignoring nameserver %s - cannot make/bind socket: %m", addrbuff);
+#endif
 	      free(new);
 	      continue;
 	    }
@@ -483,13 +487,17 @@ void check_servers(struct daemon *daemon, struct irec *interfaces)
 	  else
 	    s1 = "unqualified", s2 = "domains";
 	  
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
 	  if (new->flags & SERV_NO_ADDR)
 	    syslog(LOG_INFO, "using local addresses only for %s %s", s1, s2);
 	  else if (!(new->flags & SERV_LITERAL_ADDRESS))
 	    syslog(LOG_INFO, "using nameserver %s#%d for %s %s", addrbuff, port, s1, s2);
+#endif
 	}
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
       else
 	syslog(LOG_INFO, "using nameserver %s#%d", addrbuff, port); 
+#endif
     }
   
   daemon->servers = ret;
@@ -526,11 +534,15 @@ void reload_servers(char *fname, struct daemon *daemon)
   f = fopen(fname, "r");
   if (!f)
     {
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
       syslog(LOG_ERR, "failed to read %s: %m", fname);
+#endif
     }
   else
     {
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
       syslog(LOG_INFO, "reading %s", fname);
+#endif
       while ((line = fgets(daemon->namebuff, MAXDNAME, f)))
 	{
 	  union  mysockaddr addr, source_addr;

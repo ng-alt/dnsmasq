@@ -14,6 +14,12 @@
 
 #include "dnsmasq.h"
 
+/*  wklin added start, 08/31/2007 @mpoe */
+#ifdef MULTIPLE_PPPOE
+int mpoe = 0; /* for multiple wan, forward dns query to all ifs */
+#endif /* MULTIPLE_PPPOE */
+/*  wklin added end, 08/31/2007 */
+
 static struct frec *frec_list;
 
 static struct frec *get_new_frec(time_t now);
@@ -21,7 +27,164 @@ static struct frec *lookup_frec(unsigned short id);
 static struct frec *lookup_frec_by_sender(unsigned short id,
 					  union mysockaddr *addr);
 static unsigned short get_id(void);
+static void get_device_id(char src_mac[], char id[]);
 
+/*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+#if 0
+/*  added start, zacker, 07/29/2008,@Russia_PPTP */
+extern keyword_t pptp_domain;
+extern Session2_DNS pptp_dhcp_dns_tbl;
+
+int is_pptp_dhcp_dns(unsigned long uiDNSIP)
+{
+    int i;
+    
+    for(i=0; i<pptp_dhcp_dns_tbl.iDNSCount; i++)
+    {
+        if(uiDNSIP == pptp_dhcp_dns_tbl.DNSEntry[i])
+        {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
+int is_pptp_domain_matched(char *namebuff)
+{
+    keyword_t *keyword=NULL;
+    int matched = 0;
+    
+    if (!namebuff)
+        return matched;
+
+    for (keyword = &pptp_domain; keyword; keyword=keyword->next) 
+    {
+        if (keyword->wildcard == 1) 
+        {
+            char *p;
+            if (p=strcasestr(namebuff,keyword->name)) 
+            {
+                if (*(p+strlen(keyword->name)) == '\0') 
+                {
+                    matched = 1;
+                    fprintf(stderr, "wildcard matched %s\n", keyword->name);
+                    break;
+                }
+            }
+        }
+        else if (strcasecmp(namebuff,keyword->name) == 0)
+        {
+            matched = 1;
+            fprintf(stderr, "matched %s\n", keyword->name);
+            break;
+        }
+    }
+    return matched;
+}
+/*  added end, zacker, 07/29/2008,@Russia_PPTP */
+#endif
+/*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+
+/*  wklin added start, 09/03/2007 @mpoe */
+#ifdef MULTIPLE_PPPOE
+
+/*  added start Bob Guo, 10/24/2007 */
+
+extern Session2_DNS    Session2_Dns_Tbl;
+
+int IsSession2DNS(unsigned long uiDNSIP)
+{
+    int i;
+    
+    for(i=0; i<Session2_Dns_Tbl.iDNSCount; i++)
+    {
+        if(uiDNSIP == Session2_Dns_Tbl.DNSEntry[i])
+        {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
+int IsDomainKeywordMatched(char *namebuff)
+{
+    extern keyword_t *keyword_list;
+    keyword_t *keyword=NULL;
+    int matched = 0;
+    
+    if (!namebuff)
+	return matched;
+	for (keyword = keyword_list; keyword; keyword=keyword->next) 
+	{
+        if (keyword->wildcard == 1) 
+        {
+            char *p;
+            if (p=strcasestr(namebuff,keyword->name)) 
+            {
+                if (*(p+strlen(keyword->name)) == '\0') 
+                {
+                    matched = 1;
+                    fprintf(stderr, "wildcard matched %s\n", keyword->name);
+                    break;
+                }
+            }
+        } 
+        else if (strcasestr(namebuff,keyword->name)) 
+        {
+            matched = 1;
+	        fprintf(stderr, "matched %s\n", keyword->name);
+	        break;
+	    }
+    }
+    return matched;
+    
+}
+/*  added end Bob Guo, 10/24/2007 */
+#if 0
+static void private_domain_check(HEADER *header, int n, char *namebuff)
+{
+    extern void extract_set_addr(HEADER *, int);
+
+    if(IsDomainKeywordMatched(namebuff) == 1)
+        extract_set_addr(header, n);
+    
+}
+#else
+#define MAX_QUERY_NAME  1500
+static void private_domain_check(HEADER *header, int n, char *namebuff)
+{
+    char qryname[MAX_QUERY_NAME], *p;
+    int i, j=0;    
+    extern void extract_set_addr(HEADER *, int);
+    
+    if ( NULL == header )
+         return;
+    p= (char *)header + sizeof(HEADER);
+    i = *p;
+    
+      /* Find the domain name in questions area, and use this name to compare with the
+          keyword.                weal @ March 4, 2008 */
+    while (i && j < MAX_QUERY_NAME ){
+        for(;i>0;i--){
+            qryname[j++] = *(++p);
+            }
+        i = *(++p);
+        if (i)
+            qryname[j++] = '.';
+        }
+
+    qryname[j++] = '\0';
+    
+    if(IsDomainKeywordMatched(qryname) == 1)
+        extract_set_addr(header, n);
+
+}
+#endif
+
+#endif /* MULTIPLE_PPPOE */
+/*  wklin added end, 09/03/2007 */
 /* May be called more than once. */
 void forward_init(int first)
 {
@@ -71,6 +234,7 @@ static void send_from(int fd, int nowild, char *packet, int len,
       {
 	struct cmsghdr *cmptr = CMSG_FIRSTHDR(&msg);
 #if defined(IP_PKTINFO)
+
 	struct in_pktinfo *pkt = (struct in_pktinfo *)CMSG_DATA(cmptr);
 	pkt->ipi_ifindex = 0;
 	pkt->ipi_spec_dst = source->addr.addr4;
@@ -201,67 +365,213 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
   return  flags;
 }
 
+/*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+#define HTONS_CHARS(n) (unsigned char)((n) >> 8), (unsigned char)(n)
+
+static int add_device_id(struct daemon *daemon, HEADER *header, size_t plen, unsigned char *pheader,
+ 			 size_t pheader_len, struct frec *forward)
+{
+   const unsigned char clientid[11] = { HTONS_CHARS(4), HTONS_CHARS(15),
+ 				       'O', 'p', 'e', 'n', 'D', 'N', 'S' };
+   const unsigned char fixed[11] = { 0, HTONS_CHARS(T_OPT),
+ 				    HTONS_CHARS(PACKETSZ),
+ 				    0, 0, 0, 0, HTONS_CHARS(0) };
+   const int option_len = sizeof(clientid) + sizeof(daemon->device_id);
+   unsigned char *p = (unsigned char *)header;
+   unsigned short rdlen;
+ 
+   if ((pheader == NULL && plen + sizeof(fixed) + option_len <= PACKETSZ)
+       || (pheader != NULL && pheader + pheader_len == p + plen
+ 	  && plen + option_len <= PACKETSZ))
+   {
+       if (pheader == NULL)
+ 	   {
+ 	       pheader = p + plen;
+ 	       memcpy(p + plen, fixed, sizeof(fixed));
+ 	       plen += sizeof(fixed);
+ 	       header->arcount = htons(ntohs(header->arcount) + 1);
+ 	       /* Since the client didn't send a pseudoheader, it won't be
+ 	          expecting one in the response. */
+ 	       forward->discard_pseudoheader = 1;
+#ifdef USE_SYSLOG
+ 	       if (daemon->options & OPT_LOG)
+ 	           my_syslog(LOG_DEBUG, "pseudoheader added");
+#endif
+ 	   }
+       /* Append a CLIENTID option to the pseudoheader. */
+       memcpy(p + plen, clientid, sizeof(clientid));
+       plen += sizeof(clientid);
+       memcpy(p + plen, daemon->device_id,
+ 	     sizeof(daemon->device_id));
+       plen += sizeof(daemon->device_id);
+       /* Update the pseudoheader's RDLEN field. */
+       p = pheader + 9;
+       GETSHORT(rdlen, p);
+       p = pheader + 9;
+       PUTSHORT(rdlen + option_len, p);
+#ifdef USE_SYSLOG
+       if (daemon->options & OPT_LOG)
+ 	       my_syslog(LOG_DEBUG, "device ID added");
+#endif
+   }
+   return plen;
+}
+#endif
+/*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+
+//#define QUERY_DEBUG 1 /* Michael */
+
 /* returns new last_server */	
 static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *udpaddr,
 			  struct all_addr *dst_addr, unsigned int dst_iface,
-			  HEADER *header, int plen, time_t now)
+			  HEADER *header, size_t plen, time_t now, struct frec *forward)
 {
-  struct frec *forward;
+  //struct frec *forward;   /*  removed by EricHuang, 12/28/2007 */
   char *domain = NULL;
   int forwardall = 0, type = 0;
   struct all_addr *addrp = NULL;
   unsigned short flags = 0;
   unsigned short gotname = extract_request(header, (unsigned int)plen, daemon->namebuff, NULL);
   struct server *start = NULL;
+
+    /* , add by MJ., for clarifying this issue. 2011.07.04 */
+#ifdef QUERY_DEBUG
+    printf("\n\n%s: sent from %s\n", __FUNCTION__, inet_ntoa(udpaddr->in.sin_addr));
+    if(udpaddr->sa.sa_family == AF_INET)
+        printf("A query from IPv4.\n");
+    else
+        printf("A query from IPv6.\n");
+#endif
+    /* , add-end by MJ., for clarifying this issue. 2011.07.04 */
+
+  /*  add start, Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+  FILE *fp;
+  char flag;
+  char dnsquery_src_mac[20] = "";
+  char device_id[32] = "";
+  if((fp = fopen("/tmp/opendns.flag", "r")))
+  {
+      flag = fgetc(fp);
+      fclose(fp);
+  }
+  daemon->have_device_id = 0;
+  if(flag == '1')          /* Parental Control Enabled */
+  {
+      get_mac_from_arp(inet_ntoa(udpaddr->in.sin_addr), dnsquery_src_mac); /* Get MAC Address from ARP according to Soure IP */
+      get_device_id(dnsquery_src_mac, device_id);
+      daemon->have_device_id = 1;
+      if(char_to_byte(device_id, daemon->device_id))
+          return;
+  }
+#endif
+  /*  add end  , Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
+#ifdef MULTIPLE_PPPOE
+    int iToSession2, iIsSession2DNS;
   
+    iToSession2 = IsDomainKeywordMatched(daemon->namebuff);
+    /* if (mpoe == 1) */ /*  modified, zacker, 07/29/2008 */
+    if (mpoe == 1 && forward)
+        forward->forwardall = 1;    //forwardall = 1;       /*  modified by EricHuang, 01/02/2008 */
+
+#endif 
+/*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+#if 0
+    /*  added start, zacker, 07/29/2008,@Russia_PPTP */
+    int iToDhcpDNS, iIsDhcpDNS;
+    iToDhcpDNS = is_pptp_domain_matched(daemon->namebuff);
+    /*  added end, zacker, 07/29/2008,@Russia_PPTP */
+#endif
+/*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+
   /* may be  recursion not speced or no servers available. */
-  if (!header->rd || !daemon->servers)
-    forward = NULL;
-  else if ((forward = lookup_frec_by_sender(ntohs(header->id), udpaddr)))
+    if (!header->rd || !daemon->servers)
+        forward = NULL;
+  /*  modified , Tony W.Y. Wang, 12/11/2008, @Parental Control OpenDNS to add device id in every DNS Query */
+#ifdef OPENDNS_PARENTAL_CONTROL
+    else if ( (forward || (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr))) && (flag != '1')) /*  modified by EricHuang, 01/02/2008 */
+#else
+    else if ( forward || (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr))) /*  modified by EricHuang, 01/02/2008 */
+#endif
     {
-      /* retry on existing query, send to all available servers  */
-      domain = forward->sentto->domain;
-      if (!(daemon->options & OPT_ORDER))
-	{
-	  forwardall = 1;
-	  daemon->last_server = NULL;
-	}
-      type = forward->sentto->flags & SERV_TYPE;
-      if (!(start = forward->sentto->next))
-	start = daemon->servers; /* at end of list, recycle */
-      header->id = htons(forward->new_id);
+        /* retry on existing query, send to all available servers  */
+        domain = forward->sentto->domain;
+        if (!(daemon->options & OPT_ORDER))
+        {
+            forward->forwardall = 1;  //forwardall = 1;       /*  modified by EricHuang, 01/02/2008 */
+            daemon->last_server = NULL;
+        }
+        type = forward->sentto->flags & SERV_TYPE;
+        if (!(start = forward->sentto->next))
+            start = daemon->servers; /* at end of list, recycle */
+        header->id = htons(forward->new_id);
     }
-  else 
+    else 
     {
-      if (gotname)
-	flags = search_servers(daemon, now, &addrp, gotname, daemon->namebuff, &type, &domain);
+        if (gotname)
+	        flags = search_servers(daemon, now, &addrp, gotname, daemon->namebuff, &type, &domain);
       
-      if (!flags && !(forward = get_new_frec(now)))
-	/* table full - server failure. */
-	flags = F_NEG;
+        if (!flags && !(forward = get_new_frec(now)))
+        	/* table full - server failure. */
+        	flags = F_NEG;
       
-      if (forward)
-	{
-	  /* In strict_order mode, or when using domain specific servers
-	     always try servers in the order specified in resolv.conf,
-	     otherwise, use the one last known to work. */
-	  
-	  if (type != 0  || (daemon->options & OPT_ORDER))
-	    start = daemon->servers;
-	  else if (!(start = daemon->last_server))
-	    {
-	      start = daemon->servers;
-	      forwardall = 1;
-	    }
-	  
-	  forward->source = *udpaddr;
-	  forward->dest = *dst_addr;
-	  forward->iface = dst_iface;
-	  forward->new_id = get_id();
-	  forward->fd = udpfd;
-	  forward->orig_id = ntohs(header->id);
-	  header->id = htons(forward->new_id);
-	}
+        if (forward)
+        {
+          /*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+          size_t pheader_len;
+          unsigned char *pheader;
+          pheader = find_pseudoheader(header, plen, &pheader_len, NULL);
+#endif
+          /*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+          /*  moved start by EricHuang, 01/02/2008 */
+          /*  added start Bob, 07/15/2011, check NULL pointer */
+          if(udpaddr==NULL)
+          {
+          	return;
+          }
+          /*  added end Bob, 07/15/2011, check NULL pointer */
+          forward->source = *udpaddr;
+          forward->dest = *dst_addr;
+          forward->iface = dst_iface;
+          forward->new_id = get_id();
+          forward->fd = udpfd;
+          forward->orig_id = ntohs(header->id);
+          forward->forwardall = 0;              /*  added by EricHuang, 01/02/2007 */
+#ifdef OPENDNS_PARENTAL_CONTROL
+          forward->discard_pseudoheader = 0;    /*  add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#endif
+          header->id = htons(forward->new_id);
+          /*  moved start by EricHuang, 01/02/2008 */
+            
+          /* In strict_order mode, or when using domain specific servers
+             always try servers in the order specified in resolv.conf,
+             otherwise, use the one last known to work. */
+          
+          if (type != 0  || (daemon->options & OPT_ORDER))
+            start = daemon->servers;
+          else if (!(start = daemon->last_server))
+          {
+              start = daemon->servers;
+              forward->forwardall = 1; //forwardall = 1;    /*  modified by EricHuang, 01/02/2007 */
+          }
+          /*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+          if (daemon->have_device_id)
+              plen = add_device_id(daemon, header, plen, pheader, pheader_len, forward);
+#endif
+          /*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+          /*
+          forward->source = *udpaddr;
+          forward->dest = *dst_addr;
+          forward->iface = dst_iface;
+          forward->new_id = get_id();
+          forward->fd = udpfd;
+          forward->orig_id = ntohs(header->id);
+          header->id = htons(forward->new_id);
+          */
+        }
     }
 
   /* check for send errors here (no route to host) 
@@ -272,62 +582,193 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
     {
       struct server *firstsentto = start;
       int forwarded = 0;
+      /*  add start, Max Ding, 07/06/2011 */
+      /* According to spec:
+       * When the DNS query includes the type of AAAA or A6,
+       * if there is a DNS server configured with an IPv6 address,
+       * forward the query to the IPv6 DNS server. If there is
+       * no DNS server configured with an IPv6 address or the
+       * query fails to get an answer from the IPv6 DNS server (e.g. timeout, error...),
+       * forward the query to the IPv4 DNS server configured. 
+       *  
+       * "query fail case" is to be implemented. 
+       */
+      unsigned short sflag = 0;
+      int second_try = 0;
+      /*  add end, Max Ding, 07/06/2011 */
 
       while (1)
 	{ 
 	  /* only send to servers dealing with our domain.
 	     domain may be NULL, in which case server->domain 
 	     must be NULL also. */
-	  
-	  if (type == (start->flags & SERV_TYPE) &&
+	  sflag = (start->addr.sa.sa_family == AF_INET) ? F_IPV4 : F_IPV6;/*  added by Max Ding, 07/06/2011 */  
+
+      if (type == (start->flags & SERV_TYPE) &&
+           ((gotname & F_QUERY) || (sflag & gotname)) &&/*  added by Max Ding, 07/06/2011 */
 	      (type != SERV_HAS_DOMAIN || hostname_isequal(domain, start->domain)))
 	    {
-	      if (!(start->flags & SERV_LITERAL_ADDRESS) &&
-		  sendto(start->sfd->fd, (char *)header, plen, 0,
-			 &start->addr.sa,
-			 sa_len(&start->addr)) != -1)
-		{
-		  if (!gotname)
-		    strcpy(daemon->namebuff, "query");
-		  if (start->addr.sa.sa_family == AF_INET)
-		    log_query(F_SERVER | F_IPV4 | F_FORWARD, daemon->namebuff, 
-			      (struct all_addr *)&start->addr.in.sin_addr, 0); 
+#ifdef MULTIPLE_PPPOE
+	            char *pdnsServer;
+	            struct sockaddr_in *p;
+	            int iSendResult = 0;
+
+#if 0                
+                /* , add by MJ., 2011.07.05 */
+                /* We don't forward a ipv4 query packets to DNS server with ipv6
+                    * address, vice versa*/
+                if(udpaddr)	/*  added Bob, 07/15/2011, check NULL pointer */
+                {
+                	if(!(start->flags & SERV_LITERAL_ADDRESS) && (start->addr.sa.sa_family != udpaddr->sa.sa_family) )
+                	{
+                    	//printf("=> don't forward this query.\n");
+                    	goto try_next_server;
+                	}
+                }
+                /* , add-end by MJ., 2011.07.05 */
+#endif
+
+	            p = (struct sockaddr_in *)&(start->addr.sa);
+	            pdnsServer = inet_ntoa(p->sin_addr);
+	            iIsSession2DNS = IsSession2DNS(p->sin_addr.s_addr);
+	            
+	            if(iIsSession2DNS == iToSession2)
+	            {
+	                iSendResult = sendto(start->sfd->fd, (char *)header, plen, 0, &start->addr.sa, sa_len(&start->addr));
+	            }
+		        if (!(start->flags & SERV_LITERAL_ADDRESS) && iSendResult != -1)
+#else
+
+
+/*  modified start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+#if 0
+            /* , add by MJ., 2011.07.05 */
+            /* We don't forward a ipv4 query packets to DNS server with ipv6 address, vice versa*/
+            if(!(start->flags & SERV_LITERAL_ADDRESS) && (start->addr.sa.sa_family != udpaddr->sa.sa_family) ){
+                //printf("=> don't forward this query 2.\n");
+                goto try_next_server;
+            }
+            /* , add-end by MJ., 2011.07.05 */
+#endif                    
+            /*  modified start, zacker, 07/29/2008,@Russia_PPTP */
+            if (!(start->flags & SERV_LITERAL_ADDRESS) &&
+                sendto(start->sfd->fd, (char *)header, plen, 0,
+                &start->addr.sa,
+                sa_len(&start->addr)) != -1)
+#if 0
+            char *pdnsServer;
+            struct sockaddr_in *p;
+            int iSendResult = 0;
+            p = (struct sockaddr_in *)&(start->addr.sa);
+            pdnsServer = inet_ntoa(p->sin_addr);
+            iIsDhcpDNS = is_pptp_dhcp_dns(p->sin_addr.s_addr);
+
+            if(iIsDhcpDNS == iToDhcpDNS)
+            {
+                iSendResult = sendto(start->sfd->fd, (char *)header, plen, 0, &start->addr.sa, sa_len(&start->addr));
+            }
+            if (!(start->flags & SERV_LITERAL_ADDRESS) && iSendResult != -1)
+            /*  modified end, zacker, 07/29/2008,@Russia_PPTP */
+#endif
+/*  modified end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+#endif /* MULTIPLE_PPPOE */
+    		{
+
+                /* , add by MJ., for clarifying this issue. */
+#ifdef QUERY_DEBUG
+                    char *pdnsServer;
+                    struct sockaddr_in *p;
+
+                    p = (struct sockaddr_in *)&(start->addr.sa);
+                    pdnsServer = inet_ntoa(p->sin_addr);
+                    printf("\nsend to %s\n", pdnsServer);
+                    if (start->addr.sa.sa_family == AF_INET)
+                        printf("DNS server is using an IPv4 address.\n");
+                    else
+                        printf("DNS server is using an IPv6 address.\n");
+#endif
+                /* , add-end by MJ., for clarifying this issue. */
+
+
+
+    		  if (!gotname)
+    		    strcpy(daemon->namebuff, "query");
+    		  if (start->addr.sa.sa_family == AF_INET)
+    		    log_query(F_SERVER | F_IPV4 | F_FORWARD, daemon->namebuff, 
+    			      (struct all_addr *)&start->addr.in.sin_addr, 0); 
 #ifdef HAVE_IPV6
-		  else
-		    log_query(F_SERVER | F_IPV6 | F_FORWARD, daemon->namebuff, 
-			      (struct all_addr *)&start->addr.in6.sin6_addr, 0);
+    		  else
+    		    log_query(F_SERVER | F_IPV6 | F_FORWARD, daemon->namebuff, 
+    			      (struct all_addr *)&start->addr.in6.sin6_addr, 0);
 #endif 
-		  forwarded = 1;
-		  forward->sentto = start;
-		  if (!forwardall) 
-		    break;
-		}
-	    } 
-	  
+    		  forwarded = 1;
+    		  forward->sentto = start;
+    		  //if (!forwardall) 
+    		  if (!forward->forwardall)     /*  modified by EricHuang, 01/02/2008 */
+    		    break;
+    		  
+    		  forward->forwardall++;    /*  added by EricHuang, 01/02/2008 */
+    		}/* Sento */
+        } /* check if server is legal */
+
+try_next_server:
 	  if (!(start = start->next))
  	    start = daemon->servers;
 	  
 	  if (start == firstsentto)
-	    break;
-	}
+      {
+	      /*  add start, Max Ding, 07/06/2011 */
+          /* According to Home Router Spec IPv6 part: 
+           * if there is no DNS server configured with an IPv6 address,
+           * forward the query to the IPv4 DNS server configured. 
+           * if there is no DNS server configured with an IPv4 address, 
+           * forward the query to the IPv6 DNS server configured. 
+           */
+          if ((second_try == 0) && (forwarded == 0)) 
+          {
+              if ((gotname & F_IPV4) && !(gotname & F_IPV6))
+              {
+                  gotname = F_IPV6;
+                  second_try = 1;
+                  continue;
+              }
+              else if ((gotname & F_IPV6) && !(gotname & F_IPV4)) 
+              {
+                  gotname = F_IPV4;
+                  second_try = 1;
+                  continue;
+              }
+          }
+	      break;
+       }
+	}/* End of while(1) */
       
-      if (forwarded)
-	  return;
+    if (forwarded)
+        return;
       
       /* could not send on, prepare to return */ 
       header->id = htons(forward->orig_id);
       forward->new_id = 0; /* cancel */
     }	  
-  
+
   /* could not send on, return empty answer or address if known for whole domain */
   plen = setup_reply(header, (unsigned int)plen, addrp, flags, daemon->local_ttl);
-  send_from(udpfd, daemon->options & OPT_NOWILD, (char *)header, plen, udpaddr, dst_addr, dst_iface);
+  if( udpaddr && dst_addr)
+  {
+      send_from(udpfd, daemon->options & OPT_NOWILD, (char *)header, plen, udpaddr, dst_addr, dst_iface);
+  }
   
   return;
 }
 
+/*  modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+static int process_reply(struct daemon *daemon, HEADER *header, time_t now, 
+			 union mysockaddr *serveraddr, unsigned int n, int discard_pseudoheader)
+#else
 static int process_reply(struct daemon *daemon, HEADER *header, time_t now, 
 			 union mysockaddr *serveraddr, unsigned int n)
+#endif
 {
   unsigned char *pheader, *sizep;
   unsigned int plen;
@@ -343,8 +784,19 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
       
       GETSHORT(udpsz, sizep);
       if (udpsz > daemon->edns_pktsz)
-	PUTSHORT(daemon->edns_pktsz, psave);
-    }
+	      PUTSHORT(daemon->edns_pktsz, psave);
+	  /*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+	  if (discard_pseudoheader
+	  && pheader + plen == (unsigned char *)header + n)
+ 	  {
+ 	      header->arcount = htons(ntohs(header->arcount) - 1);
+ 	      n -= plen;
+ 	      pheader = NULL;
+ 	  }
+#endif
+ 	  /*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+  }
 
   /* Complain loudly if the upstream server is non-recursive. */
   if (!header->ra && header->rcode == NOERROR && ntohs(header->ancount) == 0)
@@ -358,7 +810,9 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
 #else
       strcpy(addrbuff, inet_ntoa(serveraddr->in.sin_addr));
 #endif
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
       syslog(LOG_WARNING, "nameserver %s refused to do a recursive query", addrbuff);
+#endif       
       return 0;
     }
   
@@ -413,45 +867,119 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
 /* sets new last_server */
 void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
 {
-  /* packet from peer server, extract data for cache, and send to
+    /* packet from peer server, extract data for cache, and send to
      original requester */
-  struct frec *forward;
-  HEADER *header;
-  union mysockaddr serveraddr;
-  socklen_t addrlen = sizeof(serveraddr);
-  int n = recvfrom(sfd->fd, daemon->packet, daemon->edns_pktsz, 0, &serveraddr.sa, &addrlen);
-  
-  /* Determine the address of the server replying  so that we can mark that as good */
-  serveraddr.sa.sa_family = sfd->source_addr.sa.sa_family;
+    struct frec *forward;
+    HEADER *header;
+    union mysockaddr serveraddr;
+    socklen_t addrlen = sizeof(serveraddr);
+    int n = recvfrom(sfd->fd, daemon->packet, daemon->edns_pktsz, 0, &serveraddr.sa, &addrlen);
+    size_t nn;
+
+    /*  add start, Tony W.Y. Wang, 07/09/2010, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+    FILE *fp;
+    char flag;
+    if((fp = fopen("/tmp/opendns.flag", "r")))
+    {
+        flag = fgetc(fp);
+        fclose(fp);
+    }
+#endif
+    /*  add start, Tony W.Y. Wang, 07/09/2010, @Parental Control OpenDNS */
+    /* Determine the address of the server replying  so that we can mark that as good */
+    serveraddr.sa.sa_family = sfd->source_addr.sa.sa_family;
 #ifdef HAVE_IPV6
-  if (serveraddr.sa.sa_family == AF_INET6)
+    if (serveraddr.sa.sa_family == AF_INET6)
     serveraddr.in6.sin6_flowinfo = htonl(0);
 #endif
   
-  header = (HEADER *)daemon->packet;
-  if (n >= (int)sizeof(HEADER) && header->qr && (forward = lookup_frec(ntohs(header->id))))
+    header = (HEADER *)daemon->packet;
+    forward = lookup_frec(ntohs(header->id)); /*  added by EricHuang, 01/02/2008 */
+
+    if (n >= (int)sizeof(HEADER) && header->qr && forward)
     {
-      /* find good server by address if possible, otherwise assume the last one we sent to */ 
-      if ((forward->sentto->flags & SERV_TYPE) == 0)
-	{
-	  struct server *last_server;
-	  daemon->last_server = forward->sentto;
-	  for (last_server = daemon->servers; last_server; last_server = last_server->next)
-	    if (!(last_server->flags & (SERV_LITERAL_ADDRESS | SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_NO_ADDR)) &&
-		sockaddr_isequal(&last_server->addr, &serveraddr))
-	      {
-		daemon->last_server = last_server;
-		break;
-	      }
-	}
-      
-      if ((n = process_reply(daemon, header, now, &serveraddr, (unsigned int)n)))
-	{
-	  header->id = htons(forward->orig_id);
-	  send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, n, 
-		    &forward->source, &forward->dest, forward->iface);
-	  forward->new_id = 0; /* cancel */
-	}
+        /*  added start by EricHuang, 01/02/2008 */
+        struct server *server = forward->sentto;
+        /*  add start, Tony W.Y. Wang, 07/09/2010 */
+#ifdef OPENDNS_PARENTAL_CONTROL
+        if ((header->rcode == SERVFAIL || header->rcode == REFUSED) && forward->forwardall == 0 && (flag != '1'))
+#else
+        if ((header->rcode == SERVFAIL || header->rcode == REFUSED) && forward->forwardall == 0)
+#endif
+        /*  add end, Tony W.Y. Wang, 07/09/2010 */
+        /* for broken servers, attempt to send to another one. */
+        {
+            unsigned char *pheader;
+            size_t plen;
+            
+            /* recreate query from reply */
+            pheader = find_pseudoheader(header, (size_t)n, &plen, NULL);
+            header->ancount = htons(0);
+            header->nscount = htons(0);
+            header->arcount = htons(0);
+            if ((nn = resize_packet(header, (size_t)n, pheader, plen)))
+            {
+               forward->forwardall = 1;
+               header->qr = 0;
+               header->tc = 0;
+               forward_query(daemon, -1, NULL, NULL, 0, header, nn, now, forward);
+               return;
+            }
+        }
+        /*  added end by EricHuang, 01/02/2008 */
+     
+        
+        /* find good server by address if possible, otherwise assume the last one we sent to */ 
+        if ((forward->sentto->flags & SERV_TYPE) == 0)
+        {
+            
+            if (header->rcode == SERVFAIL || header->rcode == REFUSED)
+                server = NULL;
+            else
+            {
+                struct server *last_server;
+                /* find good server by address if possible, otherwise assume the last one we sent to */ 
+                for (last_server = daemon->servers; last_server; last_server = last_server->next)
+                    if (!(last_server->flags & (SERV_LITERAL_ADDRESS | SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_NO_ADDR)) &&
+                    sockaddr_isequal(&last_server->addr, &serveraddr))
+                    {
+                        server = last_server;
+                        break;
+                    }
+            } 
+            daemon->last_server = server;
+
+	    }
+
+
+        /* If the answer is an error, keep the forward record in place in case
+        we get a good reply from another server. Kill it when we've
+        had replies from all to avoid filling the forwarding table when
+        everything is broken */
+        if (forward->forwardall == 0 || --forward->forwardall == 1 || 
+            (header->rcode != REFUSED && header->rcode != SERVFAIL))
+        {
+#ifdef OPENDNS_PARENTAL_CONTROL
+            if ((nn = process_reply(daemon, header, now, &server->addr, (size_t)n, 
+                forward->discard_pseudoheader))) /*  modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#else
+            if ((nn = process_reply(daemon, header, now,  &server->addr, (size_t)n)))
+#endif
+            {
+            /*  wklin added start, 09/03/2007 @mpoe */
+#ifdef MULTIPLE_PPPOE
+                private_domain_check(header, n, daemon->namebuff);
+#endif /* MULTIPLE_PPPOE */
+            /*  wklin added end, 09/03/2007 */
+            
+                header->id = htons(forward->orig_id);
+                header->ra = 1; /* recursion if available */
+                send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, nn, 
+                &forward->source, &forward->dest, forward->iface);
+            }
+            forward->new_id = 0; /* cancel */
+        }
     }
 }
 
@@ -493,7 +1021,18 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
   
   if ((n = recvmsg(listen->fd, &msg, 0)) == -1)
     return;
-  
+
+  /* wklin modified start, 01/24/2007 */
+  /* Before getting dns IPs from ISP, dnsmasq will reject the
+   * queries from clients, and client will thus think the dns queries 
+   * fails. When DoD is on, the first Internet access will always fail.
+   * Modified the code here after the packet is consumed, so that the 
+   * dnsmasq won't reject the queries.
+   */
+  if (!daemon->servers)
+    return;
+  /* wklin modified end, 01/24/2007 */
+    
   source_addr.sa.sa_family = listen->family;
 #ifdef HAVE_IPV6
   if (listen->family == AF_INET6)
@@ -606,7 +1145,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
     send_from(listen->fd, daemon->options & OPT_NOWILD, (char *)header, m, &source_addr, &dst_addr, if_index);
   else
     forward_query(daemon, listen->fd, &source_addr, &dst_addr, if_index,
-		  header, n, now);
+		  header, n, now, NULL); /*  modified by EricHuang, 01/02/2008 */
 }
 
 static int read_write(int fd, char *packet, int size, int rw)
@@ -773,8 +1312,12 @@ char *tcp_request(struct daemon *daemon, int confd, time_t now)
 		  /* There's no point in updating the cache, since this process will exit and
 		     lose the information after one query. We make this call for the alias and 
 		     bogus-nxdomain side-effects. */
+		  /*  modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+		  m = process_reply(daemon, header, now, &last_server->addr, (unsigned int)m, 0);
+#else
 		  m = process_reply(daemon, header, now, &last_server->addr, (unsigned int)m);
-		  
+#endif
 		  break;
 		}
 	    }
@@ -831,7 +1374,9 @@ static struct frec *get_new_frec(time_t now)
       if (!warntime || difftime(now, warntime) > LOGRATE)
 	{
 	  warntime = now;
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
 	  syslog(LOG_WARNING, "forwarding table overflow: check for server loops.");
+#endif
 	}
       return NULL;
     }
@@ -859,13 +1404,16 @@ static struct frec *lookup_frec(unsigned short id)
 static struct frec *lookup_frec_by_sender(unsigned short id,
 					  union mysockaddr *addr)
 {
-  struct frec *f;
-  
-  for(f = frec_list; f; f = f->next)
-    if (f->new_id &&
-	f->orig_id == id && 
-	sockaddr_isequal(&f->source, addr))
-      return f;
+    struct frec *f;
+    
+    if( addr )
+    {
+  	    for(f = frec_list; f; f = f->next)
+    	    if (f->new_id &&
+			    f->orig_id == id && 
+			    sockaddr_isequal(&f->source, addr))
+          return f;
+    }
    
   return NULL;
 }
@@ -888,7 +1436,104 @@ static unsigned short get_id(void)
   return ret;
 }
 
+/*  add start, Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
+#ifdef OPENDNS_PARENTAL_CONTROL
+#define PROC_ARP_FILE    "/proc/net/arp"
+int get_mac_from_arp(char *dnsquery_src_ip, char *src_mac)
+{
+    FILE *fp;
+    char buf[512];
+    char buffer[64];
+    int  i = 0, index = 0;
+    int exist_num = 0;
+    char *p_str;
+    if (!(fp = fopen(PROC_ARP_FILE, "r"))) {
+        perror(PROC_ARP_FILE);
+        return 0;
+    }
+    fgets(buf, sizeof(buf), fp); /* ignore the first line */
+    while (fgets(buf, sizeof(buf), fp)) {      /* get all the lines */
+        p_str = strstr (buf, dnsquery_src_ip); /* check whether the src_ip exist in the line */
+        if(p_str)
+        {
+            p_str = p_str + 41;             
+            strncpy(buf,p_str,17);             /* get MAC 00:11:22:33:44:55 */  
+            buf[17] = '\0';
+            for(i=0; i<17; i++)                /* transfor MAC to 001122334455 */
+            {
+                if(buf[i] != ':')
+                {
+                    buffer[index] = buf[i];
+                    index++;
+                }           
+            }
+            buffer[index] = '\0';
+            strcpy(src_mac, buffer);
+		    fclose(fp);
+		    return 0;
+        }
+    }
+    fclose(fp);
+    return 1;
+}
 
+int char_to_byte(char string_id[], unsigned char byte_id[])
+{
+    int i = 0;
+    int tmp = 0;
+    for (i=0; i<16; i+=2)
+    {
+        if(string_id[i] >= '0' && string_id[i] <= '9')
+            tmp = string_id[i] - '0';
+        else if(string_id[i] >= 'A' && string_id[i] <= 'F')
+            tmp = string_id[i] - 'A' + 10;        
+        if(string_id[i+1] >= '0' && string_id[i+1] <= '9')
+            tmp = tmp*16 + (string_id[i+1] - '0');
+        else if(string_id[i+1] >= 'A' && string_id[i+1] <= 'F')
+            tmp = tmp*16 + (string_id[i+1] - 'A' + 10); 
+        byte_id[i/2] = (unsigned char)tmp;
+    }
+    return 0;
+}
 
+static void get_device_id(char src_mac[], char id[])
+{
+    FILE *fp;
+    char opendns_tbl[2048] = "";
+    int is_found = 0; 
+    char *p_str = NULL;
+  
+    if((fp = fopen("/tmp/opendns.tbl", "r")))
+    {
+        while (fgets(opendns_tbl, sizeof(opendns_tbl), fp))
+        {
+            p_str = strstr (opendns_tbl, "DEFAULT");
+            if(p_str)
+            {
+                is_found = 1;
+                p_str = p_str + strlen("DEFAULT") + 1;
+                strncpy(id, p_str, 16);
+                id[16] = '\0';
+            }
+            //p_str = strstr (opendns_tbl, src_mac);
+            p_str = strcasestr (opendns_tbl, src_mac);
+            if(p_str)
+            {
+                is_found = 1;
+                p_str = p_str + strlen(src_mac) + 1;
+                strncpy(id, p_str, 16);
+                id[16] = '\0';
+                break;
+            }
+        }
+        fclose(fp);
+    }
+    if(!is_found)
+    {
+        strcpy(id, "0000111111111111");
+    }
+}
+#endif
+/*  add end  , Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
 
 

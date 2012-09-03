@@ -167,13 +167,17 @@ void complain(char *message, char *arg1)
   fprintf(stderr, message, arg1, errmess);
   fprintf(stderr, "\n");
   
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
   syslog(LOG_CRIT, message, arg1, errmess);
+#endif
 }
 
 void die(char *message, char *arg1)
 {
   complain(message, arg1);
+#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
   syslog(LOG_CRIT, "FAILED to start up");
+#endif
   exit(1);
 }
 

@@ -15,49 +15,49 @@
 #include "dnsmasq.h"
 
 static int sigterm, sighup, sigusr1, sigalarm, num_kids, in_child;
-/*  added start, Winster Chan, 01/12/2007 */
-/*  wklin modified start, 01/24/2007 */
+/* Foxconn added start, Winster Chan, 01/12/2007 */
+/* foxconn wklin modified start, 01/24/2007 */
 /* init this value to -1, so that it won't affect the
  * protocols other than pptp/pppoe which support DoD.
  */
 static int wan_up = -1;
-/*  wklin modified end, 01/24/2007 */
-/*  added end, Winster Chan, 01/12/2007 */
-/*  wklin added start, 09/03/2007 @mpoe */
+/* foxconn wklin modified end, 01/24/2007 */
+/* Foxconn added end, Winster Chan, 01/12/2007 */
+/* foxconn wklin added start, 09/03/2007 @mpoe */
 #ifdef MULTIPLE_PPPOE
 keyword_t *keyword_list = NULL;
 static void keyword_list_init(void);
 
-/*  BobGuo added start, 10/24/2007 */
+/* foxconn BobGuo added start, 10/24/2007 */
 
 Session2_DNS    Session2_Dns_Tbl;
 static void Session2_Dns_Tbl_Init();
 
-/*  BobGuo added end, 10/24/2007 */
+/* foxconn BobGuo added end, 10/24/2007 */
 
 
 #endif /* MULTIPLE_PPPOE */
-/*  wklin added end, 09/03/2007 @mpoe*/
+/* foxconn wklin added end, 09/03/2007 @mpoe*/
 
-/*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 #if 0
-/*  added start, zacker, 07/29/2008,@Russia_PPTP */
+/* Foxconn added start, zacker, 07/29/2008,@Russia_PPTP */
 keyword_t pptp_domain;
 static void pptp_domain_list_init(void);
 
 Session2_DNS pptp_dhcp_dns_tbl;
 static void pptp_dhcp_dns_tbl_init(void);
-/*  added end, zacker, 07/29/2008,@Russia_PPTP */
+/* Foxconn added end, zacker, 07/29/2008,@Russia_PPTP */
 #endif
-/*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 
 static int set_dns_listeners(struct daemon *daemon, fd_set *set, int maxfd);
 static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now);
 static void sig_handler(int sig);
 
-/*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 #if 0
-/*  added start, zacker, 07/29/2008,@Russia_PPTP */
+/* Foxconn added start, zacker, 07/29/2008,@Russia_PPTP */
 static void pptp_domain_list_init(void) {
     FILE *fp;
     char *token;
@@ -118,11 +118,11 @@ static void pptp_dhcp_dns_tbl_init()
     
     fclose(fp);
 }
-/*  added end, zacker, 07/29/2008,@Russia_PPTP */
+/* Foxconn added end, zacker, 07/29/2008,@Russia_PPTP */
 #endif
-/*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 
-/*  wklin added start, 09/03/2007 @mpoe */
+/* foxconn wklin added start, 09/03/2007 @mpoe */
 #ifdef MULTIPLE_PPPOE
 static void keyword_list_init(void) {
     FILE *fp;
@@ -174,7 +174,7 @@ static void keyword_list_init(void) {
     }
 }
 
-/*  BobGuo added start, 10/24/2007 */
+/* foxconn BobGuo added start, 10/24/2007 */
 static void Session2_Dns_Tbl_Init()
 {
     FILE *fp;
@@ -207,10 +207,10 @@ static void Session2_Dns_Tbl_Init()
     fclose(fp);
 }
 
-/*  BobGuo added end, 10/24/2007 */
+/* foxconn BobGuo added end, 10/24/2007 */
 
 #endif /* MULTIPLE_PPPOE */
-/*  wklin added end, 09/03/2007 @mpoe */
+/* foxconn wklin added end, 09/03/2007 @mpoe */
 int main (int argc, char **argv)
 {
   struct daemon *daemon;
@@ -241,10 +241,10 @@ int main (int argc, char **argv)
   sigaction(SIGTERM, &sigact, NULL);
   sigaction(SIGALRM, &sigact, NULL);
   sigaction(SIGCHLD, &sigact, NULL);
-  /*  added start, Winster Chan, 01/12/2007 */
+  /* Foxconn added start, Winster Chan, 01/12/2007 */
   sigaction(SIGINT, &sigact, NULL);
   sigaction(SIGUSR2, &sigact, NULL);
-  /*  added end, Winster Chan, 01/12/2007 */
+  /* Foxconn added end, Winster Chan, 01/12/2007 */
 
   /* ignore SIGPIPE */
   sigact.sa_handler = SIG_IGN;
@@ -257,10 +257,10 @@ int main (int argc, char **argv)
   sigaddset(&sigact.sa_mask, SIGHUP);
   sigaddset(&sigact.sa_mask, SIGALRM);
   sigaddset(&sigact.sa_mask, SIGCHLD);
-  /*  added start, Winster Chan, 01/12/2007 */
+  /* Foxconn added start, Winster Chan, 01/12/2007 */
   sigaddset(&sigact.sa_mask, SIGINT);
   sigaddset(&sigact.sa_mask, SIGUSR2);
-  /*  added end, Winster Chan, 01/12/2007 */
+  /* Foxconn added end, Winster Chan, 01/12/2007 */
   sigprocmask(SIG_BLOCK, &sigact.sa_mask, &sigmask); 
 
   daemon = read_opts(argc, argv);
@@ -337,7 +337,7 @@ int main (int argc, char **argv)
  
   now = dnsmasq_time(daemon->uptime_fd);
   
-#if 0 /*  wklin removed, 01/24/2007 */
+#if 0 /* foxconn wklin removed, 01/24/2007 */
   if (daemon->dhcp)
     {
 #if !defined(IP_PKTINFO) && !defined(IP_RECVIF)
@@ -463,7 +463,7 @@ int main (int argc, char **argv)
 	}
     }
 
-#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
+#ifdef USE_SYSLOG /* foxconn wklin added, 08/13/2007 */
   openlog("dnsmasq", 
 	  DNSMASQ_LOG_OPT(daemon->options & OPT_DEBUG), 
 	  DNSMASQ_LOG_FAC(daemon->options & OPT_DEBUG));
@@ -477,7 +477,7 @@ int main (int argc, char **argv)
     syslog(LOG_WARNING, "setting --bind-interfaces option because of OS limitations");
 #endif /* USE_SYSLOG */
   
-#if 0 /*  wklin removed, 01/24/2007 */
+#if 0 /* foxconn wklin removed, 01/24/2007 */
   if (daemon->dhcp)
     {
       struct dhcp_context *dhcp_tmp;
@@ -506,7 +506,7 @@ int main (int argc, char **argv)
     }
 #endif
 
-#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
+#ifdef USE_SYSLOG /* foxconn wklin added, 08/13/2007 */
 #ifdef HAVE_BROKEN_RTC
   if (daemon->dhcp)
     syslog(LOG_INFO, "DHCP, %s will be written every %ds", daemon->lease_file, daemon->min_leasetime/3);
@@ -542,21 +542,21 @@ int main (int argc, char **argv)
 	      check_servers(daemon, interfaces);
 	    }
 
-	  /*  wklin added start, 09/03/2007 @mpoe */
+	  /* foxconn wklin added start, 09/03/2007 @mpoe */
 #ifdef MULTIPLE_PPPOE
 	  keyword_list_init();
 	  Session2_Dns_Tbl_Init();
 #endif /* MULTIPLE_PPPOE */
-	  /*  wklin added end, 09/03/2007 @mpoe*/
+	  /* foxconn wklin added end, 09/03/2007 @mpoe*/
 
-      /*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+      /* foxconn removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 #if 0
-      /*  added start, zacker, 07/29/2008,@Russia_PPTP */
+      /* Foxconn added start, zacker, 07/29/2008,@Russia_PPTP */
       pptp_domain_list_init();
       pptp_dhcp_dns_tbl_init();
-      /*  added end, zacker, 07/29/2008,@Russia_PPTP */
+      /* Foxconn added end, zacker, 07/29/2008,@Russia_PPTP */
 #endif
-      /*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+      /* foxconn removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 
 	  sighup = 0;
 	}
@@ -587,7 +587,7 @@ int main (int argc, char **argv)
 	{
 	  int maxfd = set_dns_listeners(daemon, &rset, 0);
 	  	  
-#if 0  /*  wklin removed, 01/24/2007 */	  	  
+#if 0  /* foxconn wklin removed, 01/24/2007 */	  	  
 	  if (daemon->dhcp)
 	    {
 	      FD_SET(daemon->dhcpfd, &rset);
@@ -635,7 +635,7 @@ int main (int argc, char **argv)
 		{
 		  if (stat(res->name, &statbuf) == -1)
 		    {
-#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
+#ifdef USE_SYSLOG /* foxconn wklin added, 08/13/2007 */
 		      if (!res->logged)
 			syslog(LOG_WARNING, "failed to access %s: %m", res->name);
 #endif
@@ -670,7 +670,7 @@ int main (int argc, char **argv)
 #endif	
     }
   
-#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
+#ifdef USE_SYSLOG /* foxconn wklin added, 08/13/2007 */
   syslog(LOG_INFO, "exiting on receipt of SIGTERM");
 #endif
 
@@ -710,16 +710,16 @@ static void sig_handler(int sig)
       while (waitpid(-1, NULL, WNOHANG) > 0)
 	num_kids--;
     }
-  /*  added start, Winster Chan, 01/12/2007 */
+  /* Foxconn added start, Winster Chan, 01/12/2007 */
   else if (sig == SIGINT)
   {
-    wan_up = 0; /*  wklin modified, 01/24/2007 */
+    wan_up = 0; /* foxconn wklin modified, 01/24/2007 */
   }
   else if (sig == SIGUSR2)
   {
-    wan_up = 1; /*  wklin modified, 01/24/2007 */
+    wan_up = 1; /* foxconn wklin modified, 01/24/2007 */
   }
-  /*  added end, Winster Chan, 01/12/2007 */
+  /* Foxconn added end, Winster Chan, 01/12/2007 */
 }
 
 static int set_dns_listeners(struct daemon *daemon, fd_set *set, int maxfd)
@@ -760,13 +760,13 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
      {
        if (FD_ISSET(listener->fd, set))
         {
-          /*  added start, Winster Chan, 01/12/2007 */
+          /* Foxconn added start, Winster Chan, 01/12/2007 */
           if (!wan_up) /* maybe true in pptp/pppoe mode */
             {
-                system("killall -SIGUSR1 bpa_monitor");     /*  added Bob Guo, 02/25/2007, trigger BPA to dial up */
+                system("killall -SIGUSR1 bpa_monitor");     /* Foxconn added Bob Guo, 02/25/2007, trigger BPA to dial up */
                 system("ping -c 1 -g 0 255.255.255.255");
             }
-          /*  added end, Winster Chan, 01/12/2007 */
+          /* Foxconn added end, Winster Chan, 01/12/2007 */
           receive_query(listener, daemon, now);
         }
        

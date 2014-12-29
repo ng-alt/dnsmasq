@@ -1141,7 +1141,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
   return ansp - (unsigned char *)header;
 }
 
-/*  wklin added start, 09/05/2007 @mpoe */
+/* foxconn wklin added start, 09/05/2007 @mpoe */
 #ifdef MULTIPLE_PPPOE
 typedef struct {
     int param_count;
@@ -1168,7 +1168,7 @@ static void acos_set_ipaddr(struct in_addr *p)
     param.param_len[0] = sizeof(unsigned long);
     param.param[1] = (void *)&refresh_tick;
     param.param_len[1] = sizeof(unsigned long);
-    /*  modified by Max Ding, 01/13/2009 for multi-language */
+    /* Foxconn modified by Max Ding, 01/13/2009 for multi-language */
     //if (0 > ioctl(fd, _IOR(120, 98, char *), &param)) 
     if (0 > ioctl(fd, _IOR(100, 110, char *), &param)) 
         fprintf(stderr, "error setting ipaddress %08x.\n", ipaddr);
@@ -1225,4 +1225,4 @@ void extract_set_addr(HEADER *header, unsigned int qlen)
     return;
 }
 #endif /* MULTIPLE_PPPOE */
-/*  wklin added end, 09/05/2007 @mpoe */
+/* foxconn wklin added end, 09/05/2007 @mpoe */

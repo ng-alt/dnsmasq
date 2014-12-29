@@ -14,11 +14,11 @@
 
 #include "dnsmasq.h"
 
-/*  wklin added start, 08/31/2007 @mpoe */
+/* foxconn wklin added start, 08/31/2007 @mpoe */
 #ifdef MULTIPLE_PPPOE
 int mpoe = 0; /* for multiple wan, forward dns query to all ifs */
 #endif /* MULTIPLE_PPPOE */
-/*  wklin added end, 08/31/2007 */
+/* foxconn wklin added end, 08/31/2007 */
 
 static struct frec *frec_list;
 
@@ -29,9 +29,9 @@ static struct frec *lookup_frec_by_sender(unsigned short id,
 static unsigned short get_id(void);
 static void get_device_id(char src_mac[], char id[]);
 
-/*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 #if 0
-/*  added start, zacker, 07/29/2008,@Russia_PPTP */
+/* Foxconn added start, zacker, 07/29/2008,@Russia_PPTP */
 extern keyword_t pptp_domain;
 extern Session2_DNS pptp_dhcp_dns_tbl;
 
@@ -82,14 +82,14 @@ int is_pptp_domain_matched(char *namebuff)
     }
     return matched;
 }
-/*  added end, zacker, 07/29/2008,@Russia_PPTP */
+/* Foxconn added end, zacker, 07/29/2008,@Russia_PPTP */
 #endif
-/*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 
-/*  wklin added start, 09/03/2007 @mpoe */
+/* foxconn wklin added start, 09/03/2007 @mpoe */
 #ifdef MULTIPLE_PPPOE
 
-/*  added start Bob Guo, 10/24/2007 */
+/* foxconn added start Bob Guo, 10/24/2007 */
 
 extern Session2_DNS    Session2_Dns_Tbl;
 
@@ -141,7 +141,7 @@ int IsDomainKeywordMatched(char *namebuff)
     return matched;
     
 }
-/*  added end Bob Guo, 10/24/2007 */
+/* foxconn added end Bob Guo, 10/24/2007 */
 #if 0
 static void private_domain_check(HEADER *header, int n, char *namebuff)
 {
@@ -184,7 +184,7 @@ static void private_domain_check(HEADER *header, int n, char *namebuff)
 #endif
 
 #endif /* MULTIPLE_PPPOE */
-/*  wklin added end, 09/03/2007 */
+/* foxconn wklin added end, 09/03/2007 */
 /* May be called more than once. */
 void forward_init(int first)
 {
@@ -365,7 +365,7 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
   return  flags;
 }
 
-/*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+/* Foxconn add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
 #define HTONS_CHARS(n) (unsigned char)((n) >> 8), (unsigned char)(n)
 
@@ -418,7 +418,7 @@ static int add_device_id(struct daemon *daemon, HEADER *header, size_t plen, uns
    return plen;
 }
 #endif
-/*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+/* Foxconn add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 
 //#define QUERY_DEBUG 1 /* Michael */
 
@@ -427,7 +427,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 			  struct all_addr *dst_addr, unsigned int dst_iface,
 			  HEADER *header, size_t plen, time_t now, struct frec *forward)
 {
-  //struct frec *forward;   /*  removed by EricHuang, 12/28/2007 */
+  //struct frec *forward;   /* Foxconn removed by EricHuang, 12/28/2007 */
   char *domain = NULL;
   int forwardall = 0, type = 0;
   struct all_addr *addrp = NULL;
@@ -435,7 +435,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
   unsigned short gotname = extract_request(header, (unsigned int)plen, daemon->namebuff, NULL);
   struct server *start = NULL;
 
-    /* , add by MJ., for clarifying this issue. 2011.07.04 */
+    /* Foxconn, add by MJ., for clarifying this issue. 2011.07.04 */
 #ifdef QUERY_DEBUG
     printf("\n\n%s: sent from %s\n", __FUNCTION__, inet_ntoa(udpaddr->in.sin_addr));
     if(udpaddr->sa.sa_family == AF_INET)
@@ -443,9 +443,9 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
     else
         printf("A query from IPv6.\n");
 #endif
-    /* , add-end by MJ., for clarifying this issue. 2011.07.04 */
+    /* Foxconn, add-end by MJ., for clarifying this issue. 2011.07.04 */
 
-  /*  add start, Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
+  /* Foxconn add start, Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
   FILE *fp;
   char flag;
@@ -466,40 +466,40 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
           return;
   }
 #endif
-  /*  add end  , Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
+  /* Foxconn add end  , Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
 #ifdef MULTIPLE_PPPOE
     int iToSession2, iIsSession2DNS;
   
     iToSession2 = IsDomainKeywordMatched(daemon->namebuff);
-    /* if (mpoe == 1) */ /*  modified, zacker, 07/29/2008 */
+    /* if (mpoe == 1) */ /* Foxconn modified, zacker, 07/29/2008 */
     if (mpoe == 1 && forward)
-        forward->forwardall = 1;    //forwardall = 1;       /*  modified by EricHuang, 01/02/2008 */
+        forward->forwardall = 1;    //forwardall = 1;       /* Foxconn modified by EricHuang, 01/02/2008 */
 
 #endif 
-/*  removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 #if 0
-    /*  added start, zacker, 07/29/2008,@Russia_PPTP */
+    /* Foxconn added start, zacker, 07/29/2008,@Russia_PPTP */
     int iToDhcpDNS, iIsDhcpDNS;
     iToDhcpDNS = is_pptp_domain_matched(daemon->namebuff);
-    /*  added end, zacker, 07/29/2008,@Russia_PPTP */
+    /* Foxconn added end, zacker, 07/29/2008,@Russia_PPTP */
 #endif
-/*  removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn removed end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 
   /* may be  recursion not speced or no servers available. */
     if (!header->rd || !daemon->servers)
         forward = NULL;
-  /*  modified , Tony W.Y. Wang, 12/11/2008, @Parental Control OpenDNS to add device id in every DNS Query */
+  /* Foxconn modified , Tony W.Y. Wang, 12/11/2008, @Parental Control OpenDNS to add device id in every DNS Query */
 #ifdef OPENDNS_PARENTAL_CONTROL
-    else if ( (forward || (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr))) && (flag != '1')) /*  modified by EricHuang, 01/02/2008 */
+    else if ( (forward || (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr))) && (flag != '1')) /* Foxconn modified by EricHuang, 01/02/2008 */
 #else
-    else if ( forward || (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr))) /*  modified by EricHuang, 01/02/2008 */
+    else if ( forward || (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr))) /* Foxconn modified by EricHuang, 01/02/2008 */
 #endif
     {
         /* retry on existing query, send to all available servers  */
         domain = forward->sentto->domain;
         if (!(daemon->options & OPT_ORDER))
         {
-            forward->forwardall = 1;  //forwardall = 1;       /*  modified by EricHuang, 01/02/2008 */
+            forward->forwardall = 1;  //forwardall = 1;       /* Foxconn modified by EricHuang, 01/02/2008 */
             daemon->last_server = NULL;
         }
         type = forward->sentto->flags & SERV_TYPE;
@@ -518,32 +518,32 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
       
         if (forward)
         {
-          /*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+          /* Foxconn add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
           size_t pheader_len;
           unsigned char *pheader;
           pheader = find_pseudoheader(header, plen, &pheader_len, NULL);
 #endif
-          /*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
-          /*  moved start by EricHuang, 01/02/2008 */
-          /*  added start Bob, 07/15/2011, check NULL pointer */
+          /* Foxconn add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+          /* Foxconn moved start by EricHuang, 01/02/2008 */
+          /* foxconn added start Bob, 07/15/2011, check NULL pointer */
           if(udpaddr==NULL)
           {
           	return;
           }
-          /*  added end Bob, 07/15/2011, check NULL pointer */
+          /* foxconn added end Bob, 07/15/2011, check NULL pointer */
           forward->source = *udpaddr;
           forward->dest = *dst_addr;
           forward->iface = dst_iface;
           forward->new_id = get_id();
           forward->fd = udpfd;
           forward->orig_id = ntohs(header->id);
-          forward->forwardall = 0;              /*  added by EricHuang, 01/02/2007 */
+          forward->forwardall = 0;              /* Foxconn added by EricHuang, 01/02/2007 */
 #ifdef OPENDNS_PARENTAL_CONTROL
-          forward->discard_pseudoheader = 0;    /*  add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+          forward->discard_pseudoheader = 0;    /* Foxconn add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #endif
           header->id = htons(forward->new_id);
-          /*  moved start by EricHuang, 01/02/2008 */
+          /* Foxconn moved start by EricHuang, 01/02/2008 */
             
           /* In strict_order mode, or when using domain specific servers
              always try servers in the order specified in resolv.conf,
@@ -554,14 +554,14 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
           else if (!(start = daemon->last_server))
           {
               start = daemon->servers;
-              forward->forwardall = 1; //forwardall = 1;    /*  modified by EricHuang, 01/02/2007 */
+              forward->forwardall = 1; //forwardall = 1;    /* Foxconn modified by EricHuang, 01/02/2007 */
           }
-          /*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+          /* Foxconn add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
           if (daemon->have_device_id)
               plen = add_device_id(daemon, header, plen, pheader, pheader_len, forward);
 #endif
-          /*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+          /* Foxconn add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
           /*
           forward->source = *udpaddr;
           forward->dest = *dst_addr;
@@ -582,7 +582,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
     {
       struct server *firstsentto = start;
       int forwarded = 0;
-      /*  add start, Max Ding, 07/06/2011 */
+      /* Foxconn add start, Max Ding, 07/06/2011 */
       /* According to spec:
        * When the DNS query includes the type of AAAA or A6,
        * if there is a DNS server configured with an IPv6 address,
@@ -595,17 +595,17 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
        */
       unsigned short sflag = 0;
       int second_try = 0;
-      /*  add end, Max Ding, 07/06/2011 */
+      /* Foxconn add end, Max Ding, 07/06/2011 */
 
       while (1)
 	{ 
 	  /* only send to servers dealing with our domain.
 	     domain may be NULL, in which case server->domain 
 	     must be NULL also. */
-	  sflag = (start->addr.sa.sa_family == AF_INET) ? F_IPV4 : F_IPV6;/*  added by Max Ding, 07/06/2011 */  
+	  sflag = (start->addr.sa.sa_family == AF_INET) ? F_IPV4 : F_IPV6;/* Foxconn added by Max Ding, 07/06/2011 */  
 
       if (type == (start->flags & SERV_TYPE) &&
-           ((gotname & F_QUERY) || (sflag & gotname)) &&/*  added by Max Ding, 07/06/2011 */
+           ((gotname & F_QUERY) || (sflag & gotname)) &&/* Foxconn added by Max Ding, 07/06/2011 */
 	      (type != SERV_HAS_DOMAIN || hostname_isequal(domain, start->domain)))
 	    {
 #ifdef MULTIPLE_PPPOE
@@ -614,10 +614,10 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 	            int iSendResult = 0;
 
 #if 0                
-                /* , add by MJ., 2011.07.05 */
+                /* Foxconn, add by MJ., 2011.07.05 */
                 /* We don't forward a ipv4 query packets to DNS server with ipv6
                     * address, vice versa*/
-                if(udpaddr)	/*  added Bob, 07/15/2011, check NULL pointer */
+                if(udpaddr)	/* foxconn added Bob, 07/15/2011, check NULL pointer */
                 {
                 	if(!(start->flags & SERV_LITERAL_ADDRESS) && (start->addr.sa.sa_family != udpaddr->sa.sa_family) )
                 	{
@@ -625,7 +625,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
                     	goto try_next_server;
                 	}
                 }
-                /* , add-end by MJ., 2011.07.05 */
+                /* Foxconn, add-end by MJ., 2011.07.05 */
 #endif
 
 	            p = (struct sockaddr_in *)&(start->addr.sa);
@@ -640,17 +640,17 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 #else
 
 
-/*  modified start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn modified start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 #if 0
-            /* , add by MJ., 2011.07.05 */
+            /* Foxconn, add by MJ., 2011.07.05 */
             /* We don't forward a ipv4 query packets to DNS server with ipv6 address, vice versa*/
             if(!(start->flags & SERV_LITERAL_ADDRESS) && (start->addr.sa.sa_family != udpaddr->sa.sa_family) ){
                 //printf("=> don't forward this query 2.\n");
                 goto try_next_server;
             }
-            /* , add-end by MJ., 2011.07.05 */
+            /* Foxconn, add-end by MJ., 2011.07.05 */
 #endif                    
-            /*  modified start, zacker, 07/29/2008,@Russia_PPTP */
+            /* Foxconn modified start, zacker, 07/29/2008,@Russia_PPTP */
             if (!(start->flags & SERV_LITERAL_ADDRESS) &&
                 sendto(start->sfd->fd, (char *)header, plen, 0,
                 &start->addr.sa,
@@ -668,13 +668,13 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
                 iSendResult = sendto(start->sfd->fd, (char *)header, plen, 0, &start->addr.sa, sa_len(&start->addr));
             }
             if (!(start->flags & SERV_LITERAL_ADDRESS) && iSendResult != -1)
-            /*  modified end, zacker, 07/29/2008,@Russia_PPTP */
+            /* Foxconn modified end, zacker, 07/29/2008,@Russia_PPTP */
 #endif
-/*  modified end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
+/* foxconn modified end by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
 #endif /* MULTIPLE_PPPOE */
     		{
 
-                /* , add by MJ., for clarifying this issue. */
+                /* Foxconn, add by MJ., for clarifying this issue. */
 #ifdef QUERY_DEBUG
                     char *pdnsServer;
                     struct sockaddr_in *p;
@@ -687,7 +687,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
                     else
                         printf("DNS server is using an IPv6 address.\n");
 #endif
-                /* , add-end by MJ., for clarifying this issue. */
+                /* Foxconn, add-end by MJ., for clarifying this issue. */
 
 
 
@@ -704,10 +704,10 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
     		  forwarded = 1;
     		  forward->sentto = start;
     		  //if (!forwardall) 
-    		  if (!forward->forwardall)     /*  modified by EricHuang, 01/02/2008 */
+    		  if (!forward->forwardall)     /* Foxconn modified by EricHuang, 01/02/2008 */
     		    break;
     		  
-    		  forward->forwardall++;    /*  added by EricHuang, 01/02/2008 */
+    		  forward->forwardall++;    /* Foxconn added by EricHuang, 01/02/2008 */
     		}/* Sento */
         } /* check if server is legal */
 
@@ -717,7 +717,7 @@ try_next_server:
 	  
 	  if (start == firstsentto)
       {
-	      /*  add start, Max Ding, 07/06/2011 */
+	      /* Foxconn add start, Max Ding, 07/06/2011 */
           /* According to Home Router Spec IPv6 part: 
            * if there is no DNS server configured with an IPv6 address,
            * forward the query to the IPv4 DNS server configured. 
@@ -761,7 +761,7 @@ try_next_server:
   return;
 }
 
-/*  modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+/* Foxconn modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
 static int process_reply(struct daemon *daemon, HEADER *header, time_t now, 
 			 union mysockaddr *serveraddr, unsigned int n, int discard_pseudoheader)
@@ -785,7 +785,7 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
       GETSHORT(udpsz, sizep);
       if (udpsz > daemon->edns_pktsz)
 	      PUTSHORT(daemon->edns_pktsz, psave);
-	  /*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+	  /* Foxconn add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
 	  if (discard_pseudoheader
 	  && pheader + plen == (unsigned char *)header + n)
@@ -795,7 +795,7 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
  	      pheader = NULL;
  	  }
 #endif
- 	  /*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+ 	  /* Foxconn add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
   }
 
   /* Complain loudly if the upstream server is non-recursive. */
@@ -810,7 +810,7 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
 #else
       strcpy(addrbuff, inet_ntoa(serveraddr->in.sin_addr));
 #endif
-#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
+#ifdef USE_SYSLOG /* foxconn wklin added, 08/13/2007 */
       syslog(LOG_WARNING, "nameserver %s refused to do a recursive query", addrbuff);
 #endif       
       return 0;
@@ -876,7 +876,7 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
     int n = recvfrom(sfd->fd, daemon->packet, daemon->edns_pktsz, 0, &serveraddr.sa, &addrlen);
     size_t nn;
 
-    /*  add start, Tony W.Y. Wang, 07/09/2010, @Parental Control OpenDNS */
+    /* Foxconn add start, Tony W.Y. Wang, 07/09/2010, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
     FILE *fp;
     char flag;
@@ -886,7 +886,7 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
         fclose(fp);
     }
 #endif
-    /*  add start, Tony W.Y. Wang, 07/09/2010, @Parental Control OpenDNS */
+    /* Foxconn add start, Tony W.Y. Wang, 07/09/2010, @Parental Control OpenDNS */
     /* Determine the address of the server replying  so that we can mark that as good */
     serveraddr.sa.sa_family = sfd->source_addr.sa.sa_family;
 #ifdef HAVE_IPV6
@@ -895,19 +895,19 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
 #endif
   
     header = (HEADER *)daemon->packet;
-    forward = lookup_frec(ntohs(header->id)); /*  added by EricHuang, 01/02/2008 */
+    forward = lookup_frec(ntohs(header->id)); /* Foxconn added by EricHuang, 01/02/2008 */
 
     if (n >= (int)sizeof(HEADER) && header->qr && forward)
     {
-        /*  added start by EricHuang, 01/02/2008 */
+        /* Foxconn added start by EricHuang, 01/02/2008 */
         struct server *server = forward->sentto;
-        /*  add start, Tony W.Y. Wang, 07/09/2010 */
+        /* Foxconn add start, Tony W.Y. Wang, 07/09/2010 */
 #ifdef OPENDNS_PARENTAL_CONTROL
         if ((header->rcode == SERVFAIL || header->rcode == REFUSED) && forward->forwardall == 0 && (flag != '1'))
 #else
         if ((header->rcode == SERVFAIL || header->rcode == REFUSED) && forward->forwardall == 0)
 #endif
-        /*  add end, Tony W.Y. Wang, 07/09/2010 */
+        /* Foxconn add end, Tony W.Y. Wang, 07/09/2010 */
         /* for broken servers, attempt to send to another one. */
         {
             unsigned char *pheader;
@@ -927,7 +927,7 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
                return;
             }
         }
-        /*  added end by EricHuang, 01/02/2008 */
+        /* Foxconn added end by EricHuang, 01/02/2008 */
      
         
         /* find good server by address if possible, otherwise assume the last one we sent to */ 
@@ -962,16 +962,16 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
         {
 #ifdef OPENDNS_PARENTAL_CONTROL
             if ((nn = process_reply(daemon, header, now, &server->addr, (size_t)n, 
-                forward->discard_pseudoheader))) /*  modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+                forward->discard_pseudoheader))) /* Foxconn modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #else
             if ((nn = process_reply(daemon, header, now,  &server->addr, (size_t)n)))
 #endif
             {
-            /*  wklin added start, 09/03/2007 @mpoe */
+            /* foxconn wklin added start, 09/03/2007 @mpoe */
 #ifdef MULTIPLE_PPPOE
                 private_domain_check(header, n, daemon->namebuff);
 #endif /* MULTIPLE_PPPOE */
-            /*  wklin added end, 09/03/2007 */
+            /* foxconn wklin added end, 09/03/2007 */
             
                 header->id = htons(forward->orig_id);
                 header->ra = 1; /* recursion if available */
@@ -1145,7 +1145,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
     send_from(listen->fd, daemon->options & OPT_NOWILD, (char *)header, m, &source_addr, &dst_addr, if_index);
   else
     forward_query(daemon, listen->fd, &source_addr, &dst_addr, if_index,
-		  header, n, now, NULL); /*  modified by EricHuang, 01/02/2008 */
+		  header, n, now, NULL); /* Foxconn modified by EricHuang, 01/02/2008 */
 }
 
 static int read_write(int fd, char *packet, int size, int rw)
@@ -1312,7 +1312,7 @@ char *tcp_request(struct daemon *daemon, int confd, time_t now)
 		  /* There's no point in updating the cache, since this process will exit and
 		     lose the information after one query. We make this call for the alias and 
 		     bogus-nxdomain side-effects. */
-		  /*  modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+		  /* Foxconn modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
 		  m = process_reply(daemon, header, now, &last_server->addr, (unsigned int)m, 0);
 #else
@@ -1374,7 +1374,7 @@ static struct frec *get_new_frec(time_t now)
       if (!warntime || difftime(now, warntime) > LOGRATE)
 	{
 	  warntime = now;
-#ifdef USE_SYSLOG /*  wklin added, 08/13/2007 */
+#ifdef USE_SYSLOG /* foxconn wklin added, 08/13/2007 */
 	  syslog(LOG_WARNING, "forwarding table overflow: check for server loops.");
 #endif
 	}
@@ -1436,7 +1436,7 @@ static unsigned short get_id(void)
   return ret;
 }
 
-/*  add start, Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
+/* Foxconn add start, Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
 #define PROC_ARP_FILE    "/proc/net/arp"
 int get_mac_from_arp(char *dnsquery_src_ip, char *src_mac)
@@ -1447,14 +1447,17 @@ int get_mac_from_arp(char *dnsquery_src_ip, char *src_mac)
     int  i = 0, index = 0;
     int exist_num = 0;
     char *p_str;
+ 	/* Foxconn add start by Kathy, 03/28/2013 */
     char space=' ';
     char *s_str=NULL;
+	/* Foxconn add end by Kathy, 03/28/2013 */
     if (!(fp = fopen(PROC_ARP_FILE, "r"))) {
         perror(PROC_ARP_FILE);
         return 0;
     }
     fgets(buf, sizeof(buf), fp); /* ignore the first line */
     while (fgets(buf, sizeof(buf), fp)) {      /* get all the lines */
+	/* Foxconn modify start by Kathy, 03/28/2013 */
 	s_str=strchr(buf,space);
 	if(strncmp(buf, dnsquery_src_ip,s_str-buf) == 0)
     {
@@ -1478,6 +1481,7 @@ int get_mac_from_arp(char *dnsquery_src_ip, char *src_mac)
 		    return 0;
         }
 		}
+        /*Foxconn modify end by Kathy, 03/28/2013 */
     }
     fclose(fp);
     return 1;
@@ -1540,6 +1544,6 @@ static void get_device_id(char src_mac[], char id[])
     }
 }
 #endif
-/*  add end  , Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
+/* Foxconn add end  , Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
 
 

@@ -12,11 +12,11 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 #ifdef OPENDNS_PARENTAL_CONTROL
-#define VERSION "2.15-OpenDNS-1"  /*  modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#define VERSION "2.15-OpenDNS-1"  /* Foxconn modified, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #else
 #define VERSION "2.15"
 #endif
-/*  wklin modified start, 08/31/2007 */
+/* foxconn wklin modified start, 08/31/2007 */
 #ifdef MULTIPLE_PPPOE /* for downsize ram usage */
 #define FTABSIZ 50 /* max number of outstanding requests */
 #define MAX_PROCS 10 /* max no children for TCP requests */
@@ -40,7 +40,7 @@
 #define MAXLEASES 150 /* maximum number of DHCP leases */
 #define SMALLDNAME 40 /* most domain names are smaller than this */
 #endif
-/*  wklin modified end, 08/31/2007 */
+/* foxconn wklin modified end, 08/31/2007 */
 #define HOSTSFILE "/etc/hosts"
 #define ETHERSFILE "/etc/ethers"
 #ifdef __uClinux__

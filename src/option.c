@@ -14,7 +14,11 @@
 
 #include "dnsmasq.h"
 
+/* Foxconn added start pling 08/26/2013 */
+/* dnsmasq binding address */
 int bind_addr = 0;
+/* Foxconn added end pling 08/26/2013 */
+
 struct myoption {
   const char *name;
   int has_arg;
@@ -24,7 +28,7 @@ struct myoption {
 
 #define OPTSTRING "ZDNLERzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:"
 #ifdef OPENDNS_PARENTAL_CONTROL
-#define LOPT_DEVICE_ID 289      /*  add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+#define LOPT_DEVICE_ID 289      /* Foxconn add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #endif
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -78,7 +82,7 @@ static struct myoption opts[] = {
   {"edns-packet-max", 1, 0, 'P'},
   {"keep-in-foreground", 0, 0, 'k'},
 #ifdef OPENDNS_PARENTAL_CONTROL
-  {"device-id", 1, 0, LOPT_DEVICE_ID },/*  add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+  {"device-id", 1, 0, LOPT_DEVICE_ID },/* Foxconn add, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #endif
   {0, 0, 0, 0}
 };
@@ -111,7 +115,7 @@ static struct optflags optmap[] = {
 };
 
 static char *usage = 
-#ifndef MULTIPLE_PPPOE /*  removed start, 08/31/2007, for downsize ram usage */
+#ifndef MULTIPLE_PPPOE /* foxconn removed start, 08/31/2007, for downsize ram usage */
 "Usage: dnsmasq [options]\n"
 "\nValid options are :\n"
 "-a, --listen-address=ipaddr         Specify local address(es) to listen on.\n"
@@ -162,7 +166,7 @@ static char *usage =
 "-X, --dhcp-lease-max=number         Specify maximum number of DHCP leases (defaults to %d).\n"
 "-z, --bind-interfaces               Bind only to interfaces in use.\n"
 "-Z, --read-ethers                   Read DHCP static host information from " ETHERSFILE ".\n"
-#endif /*  wklin removed end, 08/31/2007, for downsize ram usage */
+#endif /* foxconn wklin removed end, 08/31/2007, for downsize ram usage */
 "\n";
 
 struct daemon *read_opts (int argc, char **argv)
@@ -277,13 +281,13 @@ struct daemon *read_opts (int argc, char **argv)
      
       if (!f && option == 'w')
 	{
-#if !defined(MULTIPLE_PPPOE) /*  wklin modified, for multiple pppoe, 08/31/2007 */
+#if !defined(MULTIPLE_PPPOE) /* foxconn wklin modified, for multiple pppoe, 08/31/2007 */
 	  fprintf (stderr, usage,  CACHESIZ, EDNS_PKTSZ, MAXLEASES);
 	  exit(0);
 #else
 	  extern int mpoe;
 	  mpoe = 1;
-#endif /*  wklin modified end, 08/31/2007 */
+#endif /* foxconn wklin modified end, 08/31/2007 */
 	}
 
       if (!f && option == 'v')
@@ -445,10 +449,16 @@ struct daemon *read_opts (int argc, char **argv)
 		   "interface=" to disable all interfaces except loop. */
 		new->name = safe_string_alloc(optarg);
 		new->isloop = new->used = 0;
+
+		/* Foxconn added start pling 08/26/2013 */
+		/* Read the interface IP address, so that
+		 * dnsmasq can bind this IP, instead of 0.0.0.0
+		 */
 		{
 			#define sin_addr(s) (((struct sockaddr_in *)(s))->sin_addr)
 			struct ifreq ifr;
 			int s;
+
 			if ((s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) >= 0) {
 				strncpy(ifr.ifr_name, new->name, IFNAMSIZ);
 				if (ioctl(s, SIOCGIFADDR, &ifr))
@@ -459,6 +469,8 @@ struct daemon *read_opts (int argc, char **argv)
 				}
 			}
 		}
+		/* Foxconn added end pling 08/26/2013 */
+
 		if (strchr(optarg, ':'))
 		  daemon->options |= OPT_NOWILD;
 		break;
@@ -1250,7 +1262,7 @@ struct daemon *read_opts (int argc, char **argv)
 		
 		break;
 	      }
-	    /*  add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+	    /* Foxconn add start, Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL
 	    case LOPT_DEVICE_ID:  /* --device-id */
         {
@@ -1273,7 +1285,7 @@ struct daemon *read_opts (int argc, char **argv)
             }
         }
 #endif
-	    /*  add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
+	    /* Foxconn add end  , Tony W.Y. Wang, 12/02/2008, @Parental Control OpenDNS */
 	    }
 	}
       

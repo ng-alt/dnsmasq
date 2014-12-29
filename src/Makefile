@@ -1,4 +1,5 @@
 include ../../config.mk
+include ../../config.in
 
 # Uncomment this on Solaris.
 #LIBS = -lsocket -lnsl

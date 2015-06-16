@@ -17,9 +17,12 @@ CFLAGS  += -USTATIC_PPPOE
 endif
 
 # NO IPv6 support at current stat. Must define, otherwise config.h will define HAVE_IPV6, 
-# which may cause IPv4 dns query blocked.                 weal,April 28 
 ifneq ($(INCLUDE_IPV6_FLAG),y)
 CFLAGS += -DNO_IPV6  
+endif
+
+ifeq ($(CONFIG_XDSL_PRODUCT),y)
+CFLAGS += -D_XDSL_PRODUCT
 endif
 
 #OBJS = cache.o rfc1035.o util.o option.o forward.o isc.o \

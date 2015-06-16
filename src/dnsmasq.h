@@ -97,7 +97,14 @@
 #define OPT_ETHERS         16384
 #define OPT_RESOLV_DOMAIN  32768
 #define OPT_NO_FORK        65536
-
+#if defined(_XDSL_PRODUCT)
+#ifdef HAVE_IPV6
+struct in6_pktinfo {
+	struct in6_addr	ipi6_addr;
+	int		ipi6_ifindex;
+};
+#endif
+#endif
 struct all_addr {
   union {
     struct in_addr addr4;

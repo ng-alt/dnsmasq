@@ -194,6 +194,14 @@ struct serverfd {
   struct serverfd *next;
 };
 
+/* Foxconn added start pling 01/22/2016 */
+/* Random src port issue, port from dnsmasq 2.72 */
+struct randfd {
+  int fd;
+  unsigned short refcount, family;
+};
+/* Foxconn added end pling 01/22/2016 */
+  
 struct server {
   union mysockaddr addr, source_addr;
   struct serverfd *sfd; /* non-NULL if this server has its own fd bound to
@@ -233,6 +241,13 @@ struct frec {
   union mysockaddr source;
   struct all_addr dest;
   struct server *sentto;
+/* Foxconn added start pling 01/22/2016 */
+/* Random src port issue, port from dnsmasq 2.72 */  
+  struct randfd *rfd4;
+#ifdef HAVE_IPV6
+  struct randfd *rfd6;
+#endif
+/* Foxconn added end pling 01/22/2016 */
   unsigned int iface;
   unsigned short orig_id, new_id;
   //int fd;
@@ -340,13 +355,14 @@ struct daemon {
   char *mxtarget;
   char *lease_file; 
   char *username, *groupname;
+  int osport;    /* Foxconn added pling 01/22/2016 */
   char *domain_suffix;
   char *runfile; 
   struct iname *if_names, *if_addrs, *if_except;
   struct bogus_addr *bogus_addr;
   struct server *servers;
   int cachesize;
-  int port, query_port;
+  int port, query_port, min_port;    /* Foxconn added pling 01/22/2016 */
   unsigned long local_ttl;
   char *addn_hosts;
   struct dhcp_context *dhcp;
@@ -368,6 +384,8 @@ struct daemon {
   struct listener *listeners;
   struct server *last_server;
   int uptime_fd;
+  struct randfd *rfd_save;                 /* Foxconn added pling 01/22/2016 */
+  struct randfd randomsocks[RANDOM_SOCKS]; /* Foxconn added pling 01/22/2016 */
   
   /* DHCP state */
   int dhcpfd, dhcp_raw_fd, dhcp_icmp_fd, lease_fd;
@@ -439,11 +457,21 @@ struct daemon *read_opts (int argc, char **argv);
 
 /* forward.c */
 void forward_init(int first);
-void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now);
+/* Foxconn modified start pling 01/22/2016 */
+/* Random src port issue, port from dnsmasq 2.72 */
+//void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now);
+void reply_query(int fd, int family, struct daemon *daemon, time_t now);
+struct randfd *allocate_rfd(struct daemon *daemon, int family);
+/* Foxconn modified end pling 01/22/2016 */
 void receive_query(struct listener *listen, struct daemon *daemon, time_t now);
 char *tcp_request(struct daemon *daemon, int confd, time_t now);
 
+
 /* network.c */
+/* Foxconn added start pling 01/22/2016 */
+/* Random src port issue, port from dnsmasq 2.72 */
+int random_sock(struct daemon *daemon, int family);
+/* Foxconn added end pling 01/22/2016 */
 struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds);
 void reload_servers(char *fname, struct daemon *daemon);
 void check_servers(struct daemon *daemon, struct irec *interfaces);

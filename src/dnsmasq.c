@@ -726,6 +726,7 @@ static int set_dns_listeners(struct daemon *daemon, fd_set *set, int maxfd)
 {
   struct serverfd *serverfdp;
   struct listener *listener;
+  int i;
 
   for (serverfdp = daemon->sfds; serverfdp; serverfdp = serverfdp->next)
     {
@@ -733,7 +734,19 @@ static int set_dns_listeners(struct daemon *daemon, fd_set *set, int maxfd)
       if (serverfdp->fd > maxfd)
 	maxfd = serverfdp->fd;
     }
-	  
+	
+  /* Foxconn added start pling 01/22/2016 */
+  /* Random src port issue, port from dnsmasq 2.72 */
+  if (daemon->port != 0 && !daemon->osport)
+    for (i = 0; i < RANDOM_SOCKS; i++)
+      if (daemon->randomsocks[i].refcount != 0)
+	{
+	  FD_SET(daemon->randomsocks[i].fd, set);
+      if (daemon->randomsocks[i].fd > maxfd)
+	    maxfd = daemon->randomsocks[i].fd;
+	}
+  /* Foxconn added end pling 01/22/2016 */
+
   for (listener = daemon->listeners; listener; listener = listener->next)
     {
       FD_SET(listener->fd, set);
@@ -751,10 +764,23 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
 {
   struct serverfd *serverfdp;
   struct listener *listener;	  
-
+  int i;
    for (serverfdp = daemon->sfds; serverfdp; serverfdp = serverfdp->next)
      if (FD_ISSET(serverfdp->fd, set))
-       reply_query(serverfdp, daemon, now);
+	   /* Foxconn modified start pling 01/22/2016 */
+       /* Random src port issue, port from dnsmasq 2.72 */
+       reply_query(serverfdp->fd, serverfdp->source_addr.sa.sa_family, daemon, now);
+       //reply_query(serverfdp, daemon, now);
+       /* Foxconn modified end pling 01/22/2016 */
+
+  /* Foxconn added start pling 01/22/2016 */
+  /* Random src port issue, port from dnsmasq 2.72 */
+  if (daemon->port != 0 && !daemon->osport)
+    for (i = 0; i < RANDOM_SOCKS; i++)
+      if (daemon->randomsocks[i].refcount != 0 && 
+	  FD_ISSET(daemon->randomsocks[i].fd, set))
+	reply_query(daemon->randomsocks[i].fd, daemon->randomsocks[i].family, daemon, now);
+  /* Foxconn added end pling 01/22/2016 */
 
    for (listener = daemon->listeners; listener; listener = listener->next)
      {

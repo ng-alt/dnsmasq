@@ -27,6 +27,7 @@ static struct frec *lookup_frec(unsigned short id);
 static struct frec *lookup_frec_by_sender(unsigned short id,
 					  union mysockaddr *addr);
 static unsigned short get_id(void);
+static void free_frec(struct frec *f);
 static void get_device_id(char src_mac[], char id[]);
 
 /* foxconn removed start by Jenny Zhao, 12/10/2008,@Russia_PPTP new spec*/
@@ -613,6 +614,29 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 	            struct sockaddr_in *p;
 	            int iSendResult = 0;
 
+                /* Foxconn added start pling 01/22/2016 */
+                /* Random src port issue, port from dnsmasq 2.72 */
+                int fd;				
+#ifdef HAVE_IPV6
+                if (start->addr.sa.sa_family == AF_INET6)
+                {
+                    if (!forward->rfd6 &&
+                        !(forward->rfd6 = allocate_rfd(daemon, AF_INET6)))
+                        break;  
+                    daemon->rfd_save = forward->rfd6;
+                    fd = forward->rfd6->fd;
+                }
+                else
+#endif
+                {
+                    if (!forward->rfd4 &&
+                            !(forward->rfd4 = allocate_rfd(daemon, AF_INET)))
+                        break;
+                    daemon->rfd_save = forward->rfd4;
+                    fd = forward->rfd4->fd;
+                }
+                /* Foxconn added end pling 01/22/2016 */
+
 #if 0                
                 /* Foxconn, add by MJ., 2011.07.05 */
                 /* We don't forward a ipv4 query packets to DNS server with ipv6
@@ -634,7 +658,11 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 	            
 	            if(iIsSession2DNS == iToSession2)
 	            {
-	                iSendResult = sendto(start->sfd->fd, (char *)header, plen, 0, &start->addr.sa, sa_len(&start->addr));
+                    /* Foxconn modified start pling 01/22/2016 */
+                    /* Random src port issue, port from dnsmasq 2.72 */									
+	                //iSendResult = sendto(start->sfd->fd, (char *)header, plen, 0, &start->addr.sa, sa_len(&start->addr));
+	                iSendResult = sendto(fd, (char *)header, plen, 0, &start->addr.sa, sa_len(&start->addr));
+                    /* Foxconn modified end pling 01/22/2016 */
 	            }
 		        if (!(start->flags & SERV_LITERAL_ADDRESS) && iSendResult != -1)
 #else
@@ -749,6 +777,7 @@ try_next_server:
       /* could not send on, prepare to return */ 
       header->id = htons(forward->orig_id);
       forward->new_id = 0; /* cancel */
+      free_frec(forward); /* Foxconn added pling 01/22/2016 */
     }	  
 
   /* could not send on, return empty answer or address if known for whole domain */
@@ -865,7 +894,11 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
 }
 
 /* sets new last_server */
-void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
+/* Foxconn modified start pling 01/22/2016 */
+/* Random src port issue, port from dnsmasq 2.72 */
+//void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
+void reply_query(int fd, int family, struct daemon *daemon, time_t now)
+/* Foxconn modified end pling 01/22/2016 */
 {
     /* packet from peer server, extract data for cache, and send to
      original requester */
@@ -873,7 +906,12 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
     HEADER *header;
     union mysockaddr serveraddr;
     socklen_t addrlen = sizeof(serveraddr);
-    int n = recvfrom(sfd->fd, daemon->packet, daemon->edns_pktsz, 0, &serveraddr.sa, &addrlen);
+    /* Foxconn modified start pling 01/22/2016 */
+    /* Random src port issue, port from dnsmasq 2.72 */
+    //int n = recvfrom(sfd->fd, daemon->packet, daemon->edns_pktsz, 0, &serveraddr.sa, &addrlen);
+    int n = recvfrom(fd, daemon->packet, daemon->edns_pktsz, 0, &serveraddr.sa, &addrlen);
+    /* Foxconn modified end pling 01/22/2016 */
+
     size_t nn;
 
     /* Foxconn add start, Tony W.Y. Wang, 07/09/2010, @Parental Control OpenDNS */
@@ -888,7 +926,12 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
 #endif
     /* Foxconn add start, Tony W.Y. Wang, 07/09/2010, @Parental Control OpenDNS */
     /* Determine the address of the server replying  so that we can mark that as good */
-    serveraddr.sa.sa_family = sfd->source_addr.sa.sa_family;
+    /* Foxconn modified start pling 01/22/2016 */
+    /* Random src port issue, port from dnsmasq 2.72 */
+    //serveraddr.sa.sa_family = sfd->source_addr.sa.sa_family;
+    serveraddr.sa.sa_family = family;
+    /* Foxconn modified end pling 01/22/2016 */
+	
 #ifdef HAVE_IPV6
     if (serveraddr.sa.sa_family == AF_INET6)
     serveraddr.in6.sin6_flowinfo = htonl(0);
@@ -979,6 +1022,7 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
                 &forward->source, &forward->dest, forward->iface);
             }
             forward->new_id = 0; /* cancel */
+            free_frec(forward);  /* Foxconn added pling 01/22/2016 */
         }
     }
 }
@@ -1345,9 +1389,21 @@ static struct frec *get_new_frec(time_t now)
 
   while (f)
     {
+	  /* Foxconn added start pling 01/22/2016 */
+      /* Random src port issue, port from dnsmasq 2.72 */
+	  /* Impose an absolute limit of 4*TIMEOUT before
+	   * we wipe things (for random sockets).
+	   */
+	  if (difftime(now, f->time) >= 4*TIMEOUT)
+	  {
+	    free_frec(f);
+	  }
+	  /* Foxconn added end pling 01/22/2016 */
+
       if (f->new_id == 0)
 	{
 	  f->time = now;
+	  free_frec(f);     /* pling added 01/22/2016 */
 	  return f;
 	}
 
@@ -1366,6 +1422,7 @@ static struct frec *get_new_frec(time_t now)
   if (oldest && difftime(now, oldtime)  > TIMEOUT)
     { 
       oldest->time = now;
+      free_frec(oldest);     /* pling added 01/22/2016 */
       return oldest;
     }
   
@@ -1385,10 +1442,30 @@ static struct frec *get_new_frec(time_t now)
     {
       f->next = frec_list;
       f->time = now;
+      /* Foxconn added start pling 01/22/2016 */
+      /* Random src port issue, port from dnsmasq 2.72 */
+      f->rfd4 = NULL;
+#ifdef HAVE_IPV6
+      f->rfd6 = NULL;
+#endif
+      /* Foxconn added end pling 01/22/2016 */
       frec_list = f;
     }
   return f; /* OK if malloc fails and this is NULL */
 }
+
+/* Foxconn added start pling 01/22/2016 */
+/* Random src port issue, port from dnsmasq 2.72 */
+static void free_frec(struct frec *f)
+{
+  free_rfd(f->rfd4);
+  f->rfd4 = NULL;
+#ifdef HAVE_IPV6
+  free_rfd(f->rfd6);
+  f->rfd6 = NULL;
+#endif
+}
+/* Foxconn added end pling 01/22/2016 */
  
 static struct frec *lookup_frec(unsigned short id)
 {
@@ -1435,6 +1512,52 @@ static unsigned short get_id(void)
 
   return ret;
 }
+
+/* Foxconn added start pling 01/22/2016 */
+/* Random src port issue, port from dnsmasq 2.72 */
+struct randfd *allocate_rfd(struct daemon *daemon, int family)
+{
+  static int finger = 0;
+  int i;
+
+  /* limit the number of sockets we have open to avoid starvation of 
+     (eg) TFTP. Once we have a reasonable number, randomness should be OK */
+
+  for (i = 0; i < RANDOM_SOCKS; i++)
+    if (daemon->randomsocks[i].refcount == 0)
+      {
+	if ((daemon->randomsocks[i].fd = random_sock(daemon, family)) == -1)
+	  break;
+      
+	daemon->randomsocks[i].refcount = 1;
+	daemon->randomsocks[i].family = family;
+	return &daemon->randomsocks[i];
+      }
+
+  /* No free ones or cannot get new socket, grab an existing one */
+  for (i = 0; i < RANDOM_SOCKS; i++)
+    {
+      int j = (i+finger) % RANDOM_SOCKS;
+      if (daemon->randomsocks[j].refcount != 0 &&
+	  daemon->randomsocks[j].family == family && 
+	  daemon->randomsocks[j].refcount != 0xffff)
+	{
+	  finger = j;
+	  daemon->randomsocks[j].refcount++;
+	  return &daemon->randomsocks[j];
+	}
+    }
+
+  return NULL; /* doom */
+}
+
+void free_rfd(struct randfd *rfd)
+{
+  if (rfd && --(rfd->refcount) == 0)
+    close(rfd->fd);
+}
+/* Foxconn added end pling 01/22/2016 */
+
 
 /* Foxconn add start, Tony W.Y. Wang, 12/05/2008, @Parental Control OpenDNS */
 #ifdef OPENDNS_PARENTAL_CONTROL

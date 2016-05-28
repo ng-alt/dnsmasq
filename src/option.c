@@ -195,7 +195,8 @@ struct daemon *read_opts (int argc, char **argv)
   daemon->runfile =  RUNFILE;
   daemon->dhcp_max = MAXLEASES;
   daemon->edns_pktsz = EDNS_PKTSZ;
-  
+  daemon->min_port = 32768u;	/* Foxconn added pling 01/22/2016, router spec req */
+
   while (1)
     {
       problem = NULL;

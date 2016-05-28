@@ -398,6 +398,77 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
   return listeners;
 }
 
+/* Foxconn added start pling 01/22/2016 */
+/* Random src port issue, port from dnsmasq 2.72 */
+int fix_fd(int fd)
+{
+  int flags;
+
+  if ((flags = fcntl(fd, F_GETFL)) == -1 ||
+      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+    return 0;
+  
+  return 1;
+}
+
+
+/* return a UDP socket bound to a random port, have to cope with straying into
+   occupied port nos and reserved ones. */
+int random_sock(struct daemon *daemon, int family)
+{
+  int fd;
+
+  if ((fd = socket(family, SOCK_DGRAM, 0)) != -1)
+    {
+      union mysockaddr addr;
+      unsigned int ports_avail = 65536u - (unsigned short)(daemon->min_port);
+      int tries = ports_avail < 30 ? 3 * ports_avail : 100;
+
+      memset(&addr, 0, sizeof(addr));
+      addr.sa.sa_family = family;
+
+      /* don't loop forever if all ports in use. */
+
+      if (fix_fd(fd))
+	while(tries--)
+	  {
+	    unsigned short port = rand16();
+	    
+	    if (daemon->min_port != 0)
+	      port = htons(daemon->min_port + (port % ((unsigned short)ports_avail)));
+	    
+	    if (family == AF_INET) 
+	      {
+		addr.in.sin_addr.s_addr = INADDR_ANY;
+		addr.in.sin_port = port;
+#ifdef HAVE_SOCKADDR_SA_LEN
+		addr.in.sin_len = sizeof(struct sockaddr_in);
+#endif
+	      }
+#ifdef HAVE_IPV6
+	    else
+	      {
+		addr.in6.sin6_addr = in6addr_any; 
+		addr.in6.sin6_port = port;
+#ifdef HAVE_SOCKADDR_SA_LEN
+		addr.in6.sin6_len = sizeof(struct sockaddr_in6);
+#endif
+	      }
+#endif
+	    if (bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == 0)
+	      return fd;
+	    
+	    if (errno != EADDRINUSE && errno != EACCES)
+	      break;
+	  }
+
+      close(fd);
+    }
+
+  return -1; 
+}
+/* Foxconn added end pling 01/22/2016 */
+
 struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
 {
   struct serverfd *sfd;

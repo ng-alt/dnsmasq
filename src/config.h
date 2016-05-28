@@ -24,6 +24,7 @@
 #define EDNS_PKTSZ 1280 /* default max EDNS.0 UDP packet from RFC2671 */
 #define TIMEOUT 20 /* drop UDP queries after TIMEOUT seconds */
 #define LOGRATE 120 /* log table overflows every LOGRATE seconds */
+#define RANDOM_SOCKS 64 /* max simultaneous random ports */
 #define CACHESIZ 0 /* default cache size */
 #define MAXTOK 50 /* token in DHCP leases */
 #define MAXLEASES 150 /* maximum number of DHCP leases */
@@ -35,6 +36,7 @@
 #define EDNS_PKTSZ 1280 /* default max EDNS.0 UDP packet from RFC2671 */
 #define TIMEOUT 20 /* drop UDP queries after TIMEOUT seconds */
 #define LOGRATE 120 /* log table overflows every LOGRATE seconds */
+#define RANDOM_SOCKS 64 /* max simultaneous random ports */
 #define CACHESIZ 150 /* default cache size */
 #define MAXTOK 50 /* token in DHCP leases */
 #define MAXLEASES 150 /* maximum number of DHCP leases */

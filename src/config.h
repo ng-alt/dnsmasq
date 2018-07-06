@@ -159,13 +159,13 @@ RESOLVFILE
 /* The default set of options to build. Built with these options, dnsmasq
    has no library dependencies other than libc */
 
-#define HAVE_DHCP
-#define HAVE_DHCP6 
-#define HAVE_TFTP
-#define HAVE_SCRIPT
-#define HAVE_AUTH
-#define HAVE_IPSET 
-#define HAVE_LOOP
+//#define HAVE_DHCP
+//#define HAVE_DHCP6 
+//#define HAVE_TFTP
+//#define HAVE_SCRIPT
+//#define HAVE_AUTH
+//#define HAVE_IPSET 
+//#define HAVE_LOOP
 
 /* Build options which require external libraries.
    

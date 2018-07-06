@@ -19,6 +19,11 @@
 #include "dnsmasq.h"
 #include <setjmp.h>
 
+/* Foxconn added start pling 10/25/2016 */
+/* dnsmasq binding address */
+int bind_addr = 0;
+/* Foxconn added end pling 10/25/2016 */
+
 static volatile int mem_recover = 0;
 static jmp_buf mem_jmp;
 static int one_file(char *file, int hard_opt);
@@ -2266,6 +2271,25 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	new->name = opt_string_alloc(arg);
 	new->used = 0;
 	arg = comma;
+	/* Foxconn added start pling 10/25/2016 */
+	/* Read the interface IP address, so that
+	 * dnsmasq can bind this IP, instead of 0.0.0.0
+	 */
+	{
+		#define sin_addr(s) (((struct sockaddr_in *)(s))->sin_addr)
+		struct ifreq ifr;
+		int s;
+		if ((s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) >= 0) {
+			strncpy(ifr.ifr_name, new->name, IFNAMSIZ);
+			if (ioctl(s, SIOCGIFADDR, &ifr))
+				perror("ioctl");
+			else {
+			  printf("interface %s IP address is %s\n", new->name, inet_ntoa(sin_addr(&ifr.ifr_addr)));
+			  bind_addr = (sin_addr(&ifr.ifr_addr)).s_addr;
+			}
+		}
+	}
+	/* Foxconn added end pling 10/25/2016 */
       } while (arg);
       break;
       

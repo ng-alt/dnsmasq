@@ -14,6 +14,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+struct iname *vpn_iface;
 #include "dnsmasq.h"
 
 #ifdef HAVE_LINUX_NETWORK
@@ -930,6 +931,8 @@ static struct listener *create_listeners(union mysockaddr *addr, int do_tftp, in
   return l;
 }
 
+extern int bind_addr;   /* Foxconn added pling 10/25/2016 */
+
 void create_wildcard_listeners(void)
 {
   union mysockaddr addr;
@@ -941,6 +944,12 @@ void create_wildcard_listeners(void)
 #endif
   addr.in.sin_family = AF_INET;
   addr.in.sin_addr.s_addr = INADDR_ANY;
+  /* Foxconn added start pling 10/25/2016 */
+  /* Bind to LAN IP address, so it will not receive
+   * any loopback DNS queries */
+  if (bind_addr)
+      addr.in.sin_addr.s_addr = bind_addr;
+  /* Foxconn added end pling 10/25/2016 */
   addr.in.sin_port = htons(daemon->port);
 
   l = create_listeners(&addr, !!option_bool(OPT_TFTP), 1);

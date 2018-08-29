@@ -18,17 +18,25 @@
 
 # Variables you may well want to override.
 
-PREFIX        = /usr/local
+include $(SRCBASE)/../ap/gpl/config.mk
+include $(SRCBASE)/../ap/gpl/config.in
+
+PREFIX        = $(TARGETDIR)/usr
 BINDIR        = $(PREFIX)/sbin
 MANDIR        = $(PREFIX)/share/man
 LOCALEDIR     = $(PREFIX)/share/locale
 BUILDDIR      = $(SRC)
 DESTDIR       = 
-CFLAGS        = -Wall -W -O2
+CFLAGS        += -Wall -W -O2
 LDFLAGS       = 
 COPTS         = 
 RPM_OPT_FLAGS = 
 LIBS          = 
+
+# Foxconn added pling 05/07/2016, multiple PPPoE
+ifeq ($(MPOE_ENABLE_FLAG),y)
+CFLAGS += -DMULTIPLE_PPPOE
+endif
 
 #################################################################
 

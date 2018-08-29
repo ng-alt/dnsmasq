@@ -23,6 +23,102 @@ static struct frec *lookup_frec_by_sender(unsigned short id,
 static unsigned short get_id(void);
 static void free_frec(struct frec *f);
 
+/* Foxconn added start pling 05/04/2016 */
+/* For OpenDNS parental control */
+#if (defined OPENDNS_PARENTAL_CONTROL)
+int get_mac_from_arp(char *dnsquery_src_ip, char *src_mac);
+int char_to_byte(char string_id[], unsigned char byte_id[]);
+static void get_device_id(char src_mac[], char id[]);
+#endif
+/* Foxconn added end pling 05/04/2016 */
+
+/* Foxconn added start pling 05/07/2016 */
+/* Multiple PPPoE support. */
+#ifdef MULTIPLE_PPPOE
+extern Session2_DNS    Session2_Dns_Tbl;
+
+int IsSession2DNS(unsigned long uiDNSIP)
+{
+    int i;
+    
+    for(i=0; i<Session2_Dns_Tbl.iDNSCount; i++)
+    {
+        if(uiDNSIP == Session2_Dns_Tbl.DNSEntry[i])
+        {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
+int IsDomainKeywordMatched(char *namebuff)
+{
+    extern keyword_t *keyword_list;
+    keyword_t *keyword=NULL;
+    int matched = 0;
+    
+    if (!namebuff)
+	return matched;
+	for (keyword = keyword_list; keyword; keyword=keyword->next) 
+	{
+        if (keyword->wildcard == 1) 
+        {
+            char *p;
+            if (p=strcasestr(namebuff,keyword->name)) 
+            {
+                if (*(p+strlen(keyword->name)) == '\0') 
+                {
+                    matched = 1;
+                    fprintf(stderr, "wildcard matched %s\n", keyword->name);
+                    break;
+                }
+            }
+        } 
+        else if (strcasestr(namebuff,keyword->name)) 
+        {
+            matched = 1;
+	        fprintf(stderr, "matched %s\n", keyword->name);
+	        break;
+	    }
+    }
+    return matched;
+    
+}
+
+#define MAX_QUERY_NAME  1500
+static void private_domain_check(struct dns_header *header, int n, char *namebuff)
+{
+    char qryname[MAX_QUERY_NAME], *p;
+    int i, j=0;    
+    extern void extract_set_addr(struct dns_header *, int);
+    
+    if ( NULL == header )
+         return;
+    p= (char *)header + sizeof(struct dns_header);
+    i = *p;
+    
+      /* Find the domain name in questions area, and use this name to compare with the
+          keyword.                weal @ March 4, 2008 */
+    while (i && j < MAX_QUERY_NAME ){
+        for(;i>0;i--){
+            qryname[j++] = *(++p);
+            }
+        i = *(++p);
+        if (i)
+            qryname[j++] = '.';
+        }
+
+    qryname[j++] = '\0';
+    
+    if(IsDomainKeywordMatched(qryname) == 1)
+        extract_set_addr(header, n);
+
+}
+
+#endif /* MULTIPLE_PPPOE */
+/* Foxconn added end pling 05/07/2016 */
+
 /* Send a UDP packet with its source address set as "source" 
    unless nowild is true, when we just send it with the kernel default */
 int send_from(int fd, int nowild, char *packet, size_t len, 
@@ -229,6 +325,62 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp, unsigne
   return  flags;
 }
 
+/* Foxconn added start pling 05/04/2016 */
+/* For OpenDNS parental control */
+#if (defined OPENDNS_PARENTAL_CONTROL)
+#define HTONS_CHARS(n) (unsigned char)((n) >> 8), (unsigned char)(n)
+
+static int add_device_id(struct dns_header *header, size_t plen, unsigned char *pheader,
+ 			 size_t pheader_len, struct frec *forward)
+{
+   const unsigned char clientid[11] = { HTONS_CHARS(4), HTONS_CHARS(15),
+ 				       'O', 'p', 'e', 'n', 'D', 'N', 'S' };
+   const unsigned char fixed[11] = { 0, HTONS_CHARS(T_OPT),
+ 				    HTONS_CHARS(PACKETSZ),
+ 				    0, 0, 0, 0, HTONS_CHARS(0) };
+   const int option_len = sizeof(clientid) + sizeof(daemon->device_id);
+   unsigned char *p = (unsigned char *)header;
+   unsigned short rdlen;
+ 
+  if ((pheader == NULL && plen + sizeof(fixed) + option_len <= PACKETSZ)
+       || (pheader != NULL && pheader + pheader_len == p + plen
+ 	  && plen + option_len <= PACKETSZ))
+   {
+       if (pheader == NULL)
+ 	   {
+ 	       pheader = p + plen;
+ 	       memcpy(p + plen, fixed, sizeof(fixed));
+ 	       plen += sizeof(fixed);
+ 	       header->arcount = htons(ntohs(header->arcount) + 1);
+ 	       /* Since the client didn't send a pseudoheader, it won't be
+ 	          expecting one in the response. */
+ 	       forward->discard_pseudoheader = 1;
+#ifdef USE_SYSLOG
+ 	       if (daemon->options & OPT_LOG)
+ 	           my_syslog(LOG_DEBUG, "pseudoheader added");
+#endif
+ 	   }
+       /* Append a CLIENTID option to the pseudoheader. */
+       memcpy(p + plen, clientid, sizeof(clientid));
+       plen += sizeof(clientid);
+       memcpy(p + plen, daemon->device_id,
+ 	     sizeof(daemon->device_id));
+       plen += sizeof(daemon->device_id);
+       /* Update the pseudoheader's RDLEN field. */
+       p = pheader + 9;
+       GETSHORT(rdlen, p);
+       p = pheader + 9;
+       PUTSHORT(rdlen + option_len, p);
+#ifdef USE_SYSLOG
+       if (daemon->options & OPT_LOG)
+ 	       my_syslog(LOG_DEBUG, "device ID added");
+#endif
+   }
+   return plen;
+}
+#endif /*OPENDNS_PARENTAL_CONTROL*/
+/* Foxconn added end pling 05/04/2016 */
+
 static int forward_query(int udpfd, union mysockaddr *udpaddr,
 			 struct all_addr *dst_addr, unsigned int dst_iface,
 			 struct dns_header *header, size_t plen, time_t now, 
@@ -250,8 +402,47 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 
  (void)do_bit;
 
+  /* Foxconn added start pling 05/07/2016 */
+  /* Multiple PPPoE support. */
+#ifdef MULTIPLE_PPPOE
+  int iToSession2, iIsSession2DNS;
+#endif /* MULTIPLE_PPPOE */
+  /* Foxconn added end pling 05/07/2016 */
+
+  /* Foxconn added start pling 05/04/2016 */
+  /* For OpenDNS parental control */
+#if (defined OPENDNS_PARENTAL_CONTROL)
+  FILE *fp;
+  char flag = '0';
+  char dnsquery_src_mac[20] = "";
+  char device_id[32] = "";
+  if((fp = fopen("/tmp/opendns.flag", "r")))
+  {
+      flag = fgetc(fp);
+      fclose(fp);
+  }
+  daemon->have_device_id = 0;
+  if(flag == '1')          /* Parental Control Enabled */
+  {
+      get_mac_from_arp(inet_ntoa(udpaddr->in.sin_addr), dnsquery_src_mac); /* Get MAC Address from ARP according to Soure IP */
+      get_device_id(dnsquery_src_mac, device_id);
+      daemon->have_device_id = 1;
+      if (char_to_byte(device_id, daemon->device_id))
+          return 0;
+  }
+#endif /* OPENDNS_PARENTAL_CONTROL */
+  /* Foxconn added end pling 05/04/2016 */
+
   /* may be no servers available. */
-  if (forward || (hash && (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, hash))))
+
+  /* Foxconn modified start pling 05/04/2016 */
+  /* For OpenDNS parental control */
+  if ((forward || (hash && (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, hash))))
+#if (defined OPENDNS_PARENTAL_CONTROL)
+            && (flag != '1')
+#endif
+          )
+  /* Foxconn modified end pling 05/04/2016 */
     {
       /* If we didn't get an answer advertising a maximal packet in EDNS,
 	 fall back to 1280, which should work everywhere on IPv6.
@@ -340,6 +531,19 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       
       if (forward)
 	{
+      /* Foxconn added start pling 05/04/2016 */
+      /* For OpenDNS parental control */
+#if (defined OPENDNS_PARENTAL_CONTROL)
+      size_t pheader_len;
+      unsigned char *pheader;
+      pheader = find_pseudoheader(header, plen, &pheader_len, NULL, NULL ,NULL);
+#endif
+          /* foxconn added start Bob, 07/15/2011, check NULL pointer */
+          if(udpaddr==NULL)
+          {
+          	return;
+          }
+          /* foxconn added end Bob, 07/15/2011, check NULL pointer */
 	  forward->source = *udpaddr;
 	  forward->dest = *dst_addr;
 	  forward->iface = dst_iface;
@@ -360,7 +564,12 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  if (do_bit)
 	    forward->flags |= FREC_DO_QUESTION;
 #endif
-	  
+      /* Foxconn added start pling 05/04/2016 */
+	  /* For OpenDNS parental control */
+#if (defined OPENDNS_PARENTAL_CONTROL)
+	  forward->discard_pseudoheader = 0;
+#endif
+      /* Foxconn added end pling 05/04/2016 */
 	  header->id = htons(forward->new_id);
 	  
 	  /* In strict_order mode, always try servers in the order 
@@ -388,6 +597,23 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	      if (!option_bool(OPT_ORDER))
 		forward->forwardall = 1;
 	    }
+	  
+        /* Foxconn add start pling 05/04/2016 */
+		/* For OpenDNS parental control */
+#ifdef OPENDNS_PARENTAL_CONTROL
+        if (daemon->have_device_id)
+          plen = add_device_id(header, plen, pheader, pheader_len, forward);
+#endif
+        /* Foxconn add end pling 05/04/2016 */
+	  
+        /* Foxconn added start pling 05/07/2016 */
+        /* Multiple PPPoE support. */
+#ifdef MULTIPLE_PPPOE
+        iToSession2 = IsDomainKeywordMatched(daemon->namebuff);
+        if (forward)
+          forward->forwardall = 1;
+#endif /* MULTIPLE_PPPOE */
+        /* Foxconn added end pling 05/07/2016 */
 	}
     }
 
@@ -500,11 +726,26 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 		}
 #endif
 
+#ifdef MULTIPLE_PPPOE
+          char *pdnsServer;
+          struct sockaddr_in *p;
+          
+          p = (struct sockaddr_in *)&(start->addr.sa);
+          pdnsServer = inet_ntoa(p->sin_addr);
+
+          iIsSession2DNS = IsSession2DNS(p->sin_addr.s_addr);
+          if(iIsSession2DNS == iToSession2)
+          {
+#endif  /* MULTIPLE_PPPOE */
 	      if (retry_send(sendto(fd, (char *)header, plen, 0,
 				    &start->addr.sa,
 				    sa_len(&start->addr))))
 		continue;
-	    
+#ifdef MULTIPLE_PPPOE
+          }        
+#endif  /* MULTIPLE_PPPOE */
+          /* Foxconn added end pling 05/07/2016 */
+
 	      if (errno == 0)
 		{
 		  /* Keep info in case we want to re-send this packet */
@@ -549,20 +790,29 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   if (udpfd != -1)
     {
       plen = setup_reply(header, plen, addrp, flags, daemon->local_ttl);
-      send_from(udpfd, option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND), (char *)header, plen, udpaddr, dst_addr, dst_iface);
+      if( udpaddr && dst_addr)  /* Foxconn added, NULL ptr check */
+        send_from(udpfd, option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND), (char *)header, plen, udpaddr, dst_addr, dst_iface);
     }
 
   return 0;
 }
 
+
+/* Foxconn modified start pling 05/04/2016 */
+/* For OpenDNS parental control */
 static size_t process_reply(struct dns_header *header, time_t now, struct server *server, size_t n, int check_rebind, 
 			    int no_cache, int cache_secure, int bogusanswer, int ad_reqd, int do_bit, int added_pheader, 
-			    int check_subnet, union mysockaddr *query_source)
+			    int check_subnet, union mysockaddr *query_source
+#if (defined OPENDNS_PARENTAL_CONTROL)
+                , int discard_pseudoheader
+#endif               
+              )
+/* Foxconn modified end pling 05/04/2016 */
 {
   unsigned char *pheader, *sizep;
   char **sets = 0;
   int munged = 0, is_sign;
-  size_t plen; 
+  size_t plen = 0; 
 
   (void)ad_reqd;
   (void)do_bit;
@@ -635,7 +885,18 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	    }
 	}
     }
-  
+	/* Foxconn added start pling 05/04/2016 */
+    /* For OpenDNS parental control */
+  #if (defined OPENDNS_PARENTAL_CONTROL)
+      if (discard_pseudoheader
+	      && pheader + plen == (unsigned char *)header + n)
+      {
+ 	      header->arcount = htons(ntohs(header->arcount) - 1);
+ 	      n -= plen;
+ 	      pheader = NULL;
+      }
+#endif
+    /* Foxconn added end pling 05/04/2016 */
   /* RFC 4035 sect 4.6 para 3 */
   if (!is_sign && !option_bool(OPT_DNSSEC_PROXY))
      header->hb4 &= ~HB4_AD;
@@ -744,6 +1005,19 @@ void reply_query(int fd, int family, time_t now)
   unsigned int crc;
 #endif
 
+    /* Foxconn added start pling 05/04/2016 */
+    /* For OpenDNS parental control */
+#if (defined OPENDNS_PARENTAL_CONTROL)
+    FILE *fp;
+    char flag = '0';
+    if ((fp = fopen("/tmp/opendns.flag", "r")))
+    {
+        flag = fgetc(fp);
+        fclose(fp);
+    }
+#endif	
+    /* Foxconn added end pling 05/04/2016 */	
+	
   /* packet buffer overwritten */
   daemon->srv_save = NULL;
   
@@ -787,15 +1061,24 @@ void reply_query(int fd, int family, time_t now)
       check_for_ignored_address(header, n, daemon->ignore_addr))
     return;
 
+  /* Foxconn modified start pling 06/16/2016 */
+  /* For OpenDNS parental control, and error handling */
   /* Note: if we send extra options in the EDNS0 header, we can't recreate
      the query from the reply. */
-  if (RCODE(header) == REFUSED &&
+  if ((RCODE(header) == REFUSED || RCODE(header) == SERVFAIL || RCODE(header) == NXDOMAIN) &&
       forward->forwardall == 0 &&
-      !(forward->flags & FREC_HAS_EXTRADATA))
+      !(forward->flags & FREC_HAS_EXTRADATA)
+	  
+#if (defined OPENDNS_PARENTAL_CONTROL)
+      && (flag != '1')
+#endif
+     )
+  /* Foxconn modified end pling 06/16/2016 */
+	
     /* for broken servers, attempt to send to another one. */
     {
       unsigned char *pheader;
-      size_t plen;
+      size_t plen = 0;
       int is_sign;
       
       /* recreate query from reply */
@@ -1086,11 +1369,25 @@ void reply_query(int fd, int family, time_t now)
 	header->hb4 |= HB4_CD;
       else
 	header->hb4 &= ~HB4_CD;
-      
-      if ((nn = process_reply(header, now, forward->sentto, (size_t)n, check_rebind, no_cache_dnssec, cache_secure, bogusanswer, 
+
+    /* Foxconn modified start pling 05/04/2016 */
+    /* For OpenDNS parental control */
+     if ((nn = process_reply(header, now, forward->sentto, (size_t)n, check_rebind, no_cache_dnssec, cache_secure, bogusanswer, 
 			      forward->flags & FREC_AD_QUESTION, forward->flags & FREC_DO_QUESTION, 
-			      forward->flags & FREC_ADDED_PHEADER, forward->flags & FREC_HAS_SUBNET, &forward->source)))
+			      forward->flags & FREC_ADDED_PHEADER, forward->flags & FREC_HAS_SUBNET, &forward->source
+#if (defined OPENDNS_PARENTAL_CONTROL)
+				  , forward->discard_pseudoheader
+#endif
+                  )))
+    /* Foxconn modified end pling 05/04/2016 */
 	{
+      /* Foxconn added start pling 05/07/2016 */
+      /* Multiple PPPoE support. */	
+#ifdef MULTIPLE_PPPOE
+      private_domain_check(header, n, daemon->namebuff);
+#endif /* MULTIPLE_PPPOE */
+      /* Foxconn added end pling 05/07/2016 */
+
 	  header->id = htons(forward->orig_id);
 	  header->hb4 |= HB4_RA; /* recursion if available */
 #ifdef HAVE_DNSSEC
@@ -1970,10 +2267,16 @@ unsigned char *tcp_request(int confd, time_t now,
 			}
 #endif
 
-		      m = process_reply(header, now, last_server, (unsigned int)m, 
+            /* Foxconn modified start pling 05/04/2016 */
+            /* For OpenDNS parental control */
+              m = process_reply(header, now, last_server, (unsigned int)m, 
 					option_bool(OPT_NO_REBIND) && !norebind, no_cache_dnssec, cache_secure, bogusanswer,
-					ad_reqd, do_bit, added_pheader, check_subnet, &peer_addr); 
-		      
+					ad_reqd, do_bit, added_pheader, check_subnet, &peer_addr
+#if (defined OPENDNS_PARENTAL_CONTROL)
+                    , 0
+#endif
+                    ); 
+              /* Foxconn modified end pling 05/04/2016 */
 		      break;
 		    }
 		}
@@ -2195,13 +2498,14 @@ static struct frec *lookup_frec_by_sender(unsigned short id,
 {
   struct frec *f;
   
+  if (addr) {   /* FXCN added, NULL ptr check */
   for(f = daemon->frec_list; f; f = f->next)
     if (f->sentto &&
 	f->orig_id == id && 
 	memcmp(hash, f->hash, HASH_SIZE) == 0 &&
 	sockaddr_isequal(&f->source, addr))
       return f;
-   
+  }   
   return NULL;
 }
  
@@ -2254,6 +2558,108 @@ static unsigned short get_id(void)
 }
 
 
+/* Foxconn add start pling 05/04/2016 */
+/* For OpenDNS Parental Control */
+#if (defined OPENDNS_PARENTAL_CONTROL)
+#define PROC_ARP_FILE    "/proc/net/arp"
+int get_mac_from_arp(char *dnsquery_src_ip, char *src_mac)
+{
+    FILE *fp;
+    char buf[512];
+    char buffer[64];
+    int  i = 0, index = 0;
+    char *p_str;
+    char space=' ';
+    char *s_str=NULL;
+    if (!(fp = fopen(PROC_ARP_FILE, "r"))) {
+        perror(PROC_ARP_FILE);
+        return 0;
+    }
+    fgets(buf, sizeof(buf), fp); /* ignore the first line */
+    while (fgets(buf, sizeof(buf), fp)) {      /* get all the lines */
+        s_str=strchr(buf,space);
+        if (strncmp(buf, dnsquery_src_ip,s_str-buf) == 0)
+        {
+            p_str = strstr (buf, dnsquery_src_ip); /* check whether the src_ip exist in the line */
+            if(p_str)
+            {
+                p_str = p_str + 41;             
+                strncpy(buf,p_str,17);             /* get MAC 00:11:22:33:44:55 */  
+                buf[17] = '\0';
+                for(i=0; i<17; i++)                /* transfor MAC to 001122334455 */
+                {
+                    if(buf[i] != ':')
+                    {
+                        buffer[index] = buf[i];
+                        index++;
+                    }           
+                }
+                buffer[index] = '\0';
+                strcpy(src_mac, buffer);
+               fclose(fp);
+               return 0;
+            }
+        }
+    }
+    fclose(fp);
+    return 1;
+}
 
+int char_to_byte(char string_id[], unsigned char byte_id[])
+{
+    int i = 0;
+    int tmp = 0;
+    for (i=0; i<16; i+=2)
+    {
+        if(string_id[i] >= '0' && string_id[i] <= '9')
+            tmp = string_id[i] - '0';
+        else if(string_id[i] >= 'A' && string_id[i] <= 'F')
+            tmp = string_id[i] - 'A' + 10;        
+        if(string_id[i+1] >= '0' && string_id[i+1] <= '9')
+            tmp = tmp*16 + (string_id[i+1] - '0');
+        else if(string_id[i+1] >= 'A' && string_id[i+1] <= 'F')
+            tmp = tmp*16 + (string_id[i+1] - 'A' + 10); 
+        byte_id[i/2] = (unsigned char)tmp;
+    }
+    return 0;
+}
 
-
+static void get_device_id(char src_mac[], char id[])
+{
+    FILE *fp;
+    char opendns_tbl[2048] = "";
+    int is_found = 0; 
+    char *p_str = NULL;
+  
+    if((fp = fopen("/tmp/opendns.tbl", "r")))
+    {
+        while (fgets(opendns_tbl, sizeof(opendns_tbl), fp))
+        {
+            p_str = strstr (opendns_tbl, "DEFAULT");
+            if(p_str)
+            {
+                is_found = 1;
+                p_str = p_str + strlen("DEFAULT") + 1;
+                strncpy(id, p_str, 16);
+                id[16] = '\0';
+            }
+            //p_str = strstr (opendns_tbl, src_mac);
+            p_str = strcasestr (opendns_tbl, src_mac);
+            if(p_str)
+            {
+                is_found = 1;
+                p_str = p_str + strlen(src_mac) + 1;
+                strncpy(id, p_str, 16);
+                id[16] = '\0';
+                break;
+            }
+        }
+        fclose(fp);
+    }
+    if(!is_found)
+    {
+        strcpy(id, "0000111111111111");
+    }
+}
+#endif /*OPENDNS_PARENTAL_CONTROL*/
+/* Foxconn add end pling 05/04/2016 */

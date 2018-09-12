@@ -175,6 +175,11 @@ struct event_desc {
 #define EVENT_NEWROUTE   23
 #define EVENT_TIME_ERR   24
 #define EVENT_SCRIPT_LOG 25
+/* Foxconn added start pling 05/07/2016 */
+/* Define new events for WAN up / down */
+#define EVENT_WAN_DOWN  26
+#define EVENT_WAN_UP    27
+/* Foxconn added end pling 05/07/2016 */
 
 /* Exit codes. */
 #define EC_GOOD        0
@@ -635,6 +640,12 @@ struct frec {
   struct frec *blocking_query; /* Query which is blocking us. */
 #endif
   struct frec *next;
+
+  /* Foxconn addeds start pling 05/04/2016 */
+#if (defined OPENDNS_PARENTAL_CONTROL)
+  int discard_pseudoheader;
+#endif
+  /* Foxconn addeds end pling 05/04/2016 */
 };
 
 /* flags in top of length field for DHCP-option tables */
@@ -1078,6 +1089,13 @@ extern struct daemon {
   /* utility string buffer, hold max sized IP address as string */
   char *addrbuff;
   char *addrbuff2; /* only allocated when OPT_EXTRALOG */
+
+  /* Foxconn added start pling 05/04/2016 */
+#if (defined OPENDNS_PARENTAL_CONTROL)
+  int have_device_id;
+  unsigned char device_id[8]; /* In network byte-order */
+#endif
+  /* Foxconn added end pling 05/04/2016 */
 
 } *daemon;
 
@@ -1564,3 +1582,18 @@ int check_source(struct dns_header *header, size_t plen, unsigned char *pseudohe
 /* arp.c */
 int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy, time_t now);
 int do_arp_script_run(void);
+
+#ifdef MULTIPLE_PPPOE
+#define MAX_KEYWORD_LEN 64
+typedef struct _keyword_t{
+    char name[MAX_KEYWORD_LEN];
+    struct _keyword_t *next;
+    int  wildcard; /* for *.flets */
+} keyword_t;
+
+#define MAX_DNS_ENTRY_NUMBER 32
+typedef struct _session2_dns{
+    int iDNSCount;
+    unsigned long DNSEntry[MAX_DNS_ENTRY_NUMBER];
+} Session2_DNS;
+#endif /* MULTIPLE_PPPOE */

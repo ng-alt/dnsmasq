@@ -32,6 +32,103 @@ static void fatal_event(struct event_desc *ev, char *msg);
 static int read_event(int fd, struct event_desc *evp, char **msg);
 static void poll_resolv(int force, int do_reload, time_t now);
 
+/* Foxconn added start pling 05/07/2016 */
+/* init this value to -1, so that it won't affect the
+ * protocols other than pptp/pppoe which support DoD.*/
+static int wan_up = -1;
+
+/* Multiple PPPoE support. */
+#ifdef MULTIPLE_PPPOE
+keyword_t *keyword_list = NULL;
+static void keyword_list_init(void);
+
+Session2_DNS    Session2_Dns_Tbl;
+static void Session2_Dns_Tbl_Init();
+
+static void keyword_list_init(void) {
+    FILE *fp;
+    char buf[MAX_KEYWORD_LEN];
+    keyword_t *k1, *k2;
+
+    keyword_t *keyword, *to_be_freed;
+    /* fprintf(stderr, "keyword_list_init.\n"); */
+    if (keyword_list) {
+        /* fprintf(stderr, "free keyword_list.\n"); */
+        for (keyword=keyword_list; keyword;) {
+            to_be_freed = keyword;
+            keyword = keyword->next;
+            free(to_be_freed);
+            /* fprintf(stderr, "keyword %p freed.\n",keyword);*/
+        }
+        keyword_list = NULL;
+    }
+    fp = fopen("/tmp/mpoe_keywords", "r");
+    if (fp) {
+        while (NULL != fgets(buf, sizeof(buf), fp)) {
+            buf[strlen(buf)-1] = '\0'; /* remove \n */
+            /* fprintf(stderr, "read keyword %s\n", buf);*/
+            k1 = malloc(sizeof(keyword_t));
+            if (!k1) {
+                /* fprintf(stderr, "out of memory"); */
+                return;
+            }
+            if (strstr(buf, "*")) {
+                k1->wildcard = 1;
+                strcpy(k1->name, strstr(buf, "*")+1);
+            } else {
+                k1->wildcard = 0;
+                strcpy(k1->name, buf);
+            }
+            k1->next = NULL;
+            /* fprintf(stderr, "added %s (%d) to keyword_list\n", k1->name,
+                    k1->wildcard); */
+            if (!keyword_list) {
+                keyword_list = k1;
+            } else {
+                k2 = keyword_list;
+                while(k2->next)
+                    k2 = k2->next;
+                k2->next = k1;
+            }
+        }
+        fclose(fp);
+    }
+}
+
+static void Session2_Dns_Tbl_Init()
+{
+    FILE *fp;
+    char *token;
+    char line[256];
+    in_addr_t   dnsServer;
+    
+    Session2_Dns_Tbl.iDNSCount = 0;
+    fp = fopen("/tmp/resolv_session2.conf", "r");
+    if(fp == NULL)
+        return;
+        
+    while (fgets(line, sizeof(line), fp)) 
+    {
+        token = strtok(line, " \t\n");
+        if(token == NULL)
+            continue;
+        if( strcmp(token, "nameserver") == 0)
+        {
+            token = strtok(NULL, " \t\n");
+            if(token)
+            {
+                dnsServer = inet_addr(token);
+                Session2_Dns_Tbl.DNSEntry[Session2_Dns_Tbl.iDNSCount] = dnsServer;
+                Session2_Dns_Tbl.iDNSCount++;
+            }
+        }   
+    }
+    
+    fclose(fp);
+}
+#endif /* MULTIPLE_PPPOE */
+/* Foxconn added end pling 05/07/2016 */
+
 int main (int argc, char **argv)
 {
   int bind_fallback = 0;
@@ -77,6 +174,11 @@ int main (int argc, char **argv)
   sigaction(SIGTERM, &sigact, NULL);
   sigaction(SIGALRM, &sigact, NULL);
   sigaction(SIGCHLD, &sigact, NULL);
+  /* Foxconn added start pling 05/07/2016 */
+  /* Add this signal handler to make compatible with heartbeat.
+   * heartbeat will send SIGINT and SIGUSR2 to dnsmasq for wan down/up */
+  sigaction(SIGINT, &sigact, NULL);
+  /* Foxconn added end pling 05/07/2016 */
 
   /* ignore SIGPIPE */
   sigact.sa_handler = SIG_IGN;
@@ -401,8 +503,13 @@ int main (int argc, char **argv)
   else if (daemon->groupname && !(gp = getgrnam(daemon->groupname)))
     baduser = daemon->groupname;
 
+  /* Foxconn modified start pling 05/04/2016 */
+  /* No need to die here. Make it compatible with current 'rc' */
+#if 0
   if (baduser)
-    die(_("unknown user or group: %s"), baduser, EC_BADCONF);
+     die(_("unknown user or group: %s"), baduser, EC_BADCONF);
+#endif
+  /* Foxconn modified end pling 05/04/2016 */
 
   /* implement group defaults, "dip" if available, or group associated with uid */
   if (!daemon->group_set && !gp)
@@ -1103,8 +1210,18 @@ static void sig_handler(int sig)
 	event = EVENT_TERM;
       else if (sig == SIGUSR1)
 	event = EVENT_DUMP;
+      /* Foxconn modified start pling 05/07/2016 */
+      /* Modify SIGUSR2 and add SIGINT to make compatible with heartbeat.
+       * heartbeat will send SIGINT and SIGUSR2 to dnsmasq for wan down/up */
+#if 0
       else if (sig == SIGUSR2)
 	event = EVENT_REOPEN;
+#endif
+      else if (sig == SIGUSR2)
+          event = EVENT_WAN_UP;
+      else if (sig == SIGINT)
+          event = EVENT_WAN_DOWN;
+      /* Foxconn modfiied end pling 05/07/2016 */
       else
 	return;
 
@@ -1240,6 +1357,16 @@ static void async_event(int pipe, time_t now)
 	    daemon->dnssec_no_time_check = 0;
 	  } 
 #endif
+
+    /* Foxconn added start pling 05/07/2016 */
+    /* Multiple PPPoE support.
+     *  Got SIGUP event from wan_up to reload 2nd resolv.conf file */
+#ifdef MULTIPLE_PPPOE
+	  keyword_list_init();
+	  Session2_Dns_Tbl_Init();
+#endif /* MULTIPLE_PPPOE */
+    /* Foxconn added end pling 05/07/2016 */
+
 	/* fall through */
 	
       case EVENT_INIT:
@@ -1347,6 +1474,16 @@ static void async_event(int pipe, time_t now)
 	/* Force re-reading resolv file right now, for luck. */
 	poll_resolv(0, 1, now);
 	break;
+
+      /* Foxconn added start pling 05/07/2016 */
+      /* Got signal for wan up / down. Set flag */
+      case EVENT_WAN_UP:
+        wan_up = 1;
+        break;
+      case EVENT_WAN_DOWN:
+        wan_up = 0;
+        break;
+      /* Foxconn added end pling 05/07/2016 */
 
       case EVENT_TERM:
 	/* Knock all our children on the head. */
@@ -1562,8 +1699,18 @@ static void check_dns_listeners(time_t now)
   for (listener = daemon->listeners; listener; listener = listener->next)
     {
       if (listener->fd != -1 && poll_check(listener->fd, POLLIN))
+      {
+        /* Foxconn added start pling 05/07/2016 */
+        /* DNS query to trigger dial out when in PPP idle mode */
+        if (!wan_up)
+        {
+          system("killall -SIGUSR1 bpa_monitor");
+          system("ping -c 1 -g 0 255.255.255.255");
+        }
+        /* Foxconn added end pling 05/07/2016 */
+
 	receive_query(listener, now); 
-      
+      }
 #ifdef HAVE_TFTP     
       if (listener->tftpfd != -1 && poll_check(listener->tftpfd, POLLIN))
 	tftp_request(listener, now);

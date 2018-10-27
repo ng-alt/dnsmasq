@@ -399,7 +399,6 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   void *hash = &crc;
 #endif
  unsigned int gotname = extract_request(header, plen, daemon->namebuff, NULL);
- unsigned char *pheader;
 
  (void)do_bit;
 
@@ -435,12 +434,10 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   /* Foxconn added end pling 05/04/2016 */
 
   /* may be no servers available. */
-  if (!daemon->servers)
-    forward = NULL;
 
   /* Foxconn modified start pling 05/04/2016 */
   /* For OpenDNS parental control */
-  else if ((forward || (hash && (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, hash))))
+  if ((forward || (hash && (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, hash))))
 #if (defined OPENDNS_PARENTAL_CONTROL)
             && (flag != '1')
 #endif
@@ -809,7 +806,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   unsigned char *pheader, *sizep;
   char **sets = 0;
   int munged = 0, is_sign;
-  size_t plen; 
+  size_t plen = 0; 
 
   (void)ad_reqd;
   (void)do_bit;
@@ -1075,7 +1072,7 @@ void reply_query(int fd, int family, time_t now)
     /* for broken servers, attempt to send to another one. */
     {
       unsigned char *pheader;
-      size_t plen;
+      size_t plen = 0;
       int is_sign;
       
       /* recreate query from reply */
@@ -1369,7 +1366,7 @@ void reply_query(int fd, int family, time_t now)
 
     /* Foxconn modified start pling 05/04/2016 */
     /* For OpenDNS parental control */
-     if ((nn = process_reply(header, now, server, (size_t)n, check_rebind, no_cache_dnssec, cache_secure, bogusanswer, 
+     if ((nn = process_reply(header, now, forward->sentto, (size_t)n, check_rebind, no_cache_dnssec, cache_secure, bogusanswer, 
 			      forward->flags & FREC_AD_QUESTION, forward->flags & FREC_DO_QUESTION, 
 			      forward->flags & FREC_ADDED_PHEADER, forward->flags & FREC_HAS_SUBNET, &forward->source
 #if (defined OPENDNS_PARENTAL_CONTROL)
